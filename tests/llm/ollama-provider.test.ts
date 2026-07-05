@@ -67,6 +67,35 @@ describe('createOllamaProvider().runTurn', () => {
     ]);
   });
 
+  it('envia mensagem de tool com erro quando a ferramenta é desconhecida', async () => {
+    const provider = createOllamaProvider('http://localhost:11434', 'qwen2.5');
+    const OpenAIModule = await import('openai');
+    const clientInstance = (OpenAIModule.default as any).mock.results.at(-1).value as OpenAI;
+    const create = clientInstance.chat.completions.create as any;
+    create.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: null,
+            tool_calls: [
+              { id: 'call-1', function: { name: 'ferramenta_inexistente', arguments: '{}' } },
+            ],
+          },
+        },
+      ],
+    });
+    create.mockResolvedValueOnce({
+      choices: [{ message: { content: 'Ok.', tool_calls: undefined } }],
+    });
+    const result = await provider.runTurn('system', 'oi', [], makeToolContext());
+    expect(result.narration).toBe('Ok.');
+    const secondCallArgs = create.mock.calls[1][0];
+    const toolMessage = secondCallArgs.messages.at(-1);
+    expect(toolMessage.role).toBe('tool');
+    const parsedContent = JSON.parse(toolMessage.content);
+    expect(parsedContent.error).toMatch(/ferramenta_inexistente/);
+  });
+
   it('lança erro ao exceder o número máximo de iterações', async () => {
     const infiniteTool: ToolDefinition = {
       name: 'fazer_teste',
