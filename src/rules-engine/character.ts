@@ -1,7 +1,7 @@
-import type { CharacterSheet, RulesetConfig } from './types';
+import type { CharacterSheet, ValidatedRulesetConfig } from './types';
 
 export function createCharacterSheet(
-  config: RulesetConfig,
+  config: ValidatedRulesetConfig,
   name: string,
   attributeValues: Record<string, number>
 ): CharacterSheet {
@@ -13,7 +13,14 @@ export function createCharacterSheet(
 
   const resources: Record<string, number> = {};
   for (const resource of config.resources) {
-    const bonus = resource.linkedAttribute ? attributeValues[resource.linkedAttribute] : 0;
+    let bonus = 0;
+    if (resource.linkedAttribute) {
+      const linkedValue = attributeValues[resource.linkedAttribute];
+      if (linkedValue === undefined) {
+        throw new Error(`Falta valor para o atributo "${resource.linkedAttribute}"`);
+      }
+      bonus = linkedValue;
+    }
     resources[resource.key] = resource.startingValue + bonus;
   }
 

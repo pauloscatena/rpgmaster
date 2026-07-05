@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { resolverAtaque, aplicarDano } from '../../src/rules-engine/combat';
 import { createCharacterSheet } from '../../src/rules-engine/character';
 import { defaultRulesetConfig } from '../../src/rules-engine/ruleset-config';
@@ -12,7 +12,13 @@ describe('resolverAtaque', () => {
     // segunda chamada = dado de dano (d6, rng=0.5 -> 4) + forca 3 = 7
     const calls = [0.5, 0.5];
     let i = 0;
-    const rng = () => calls[i++];
+    const rng = () => {
+      const value = calls[i++];
+      if (value === undefined) {
+        throw new Error('rng chamado mais vezes do que o esperado no teste');
+      }
+      return value;
+    };
     const result = resolverAtaque(config, attacker, rng);
     expect(result.hit).toBe(true);
     expect(result.check.total).toBe(14);
@@ -25,6 +31,13 @@ describe('resolverAtaque', () => {
     expect(result.hit).toBe(false);
     expect(result.damage).toBe(0);
   });
+
+  it('não avança o cursor do rng (não rola o dado de dano) quando erra', () => {
+    const rng = vi.fn(() => 0); // d20 rng=0 -> roll 1 + forca 3 = 4 < defenseValue 12
+    const result = resolverAtaque(config, attacker, rng);
+    expect(result.hit).toBe(false);
+    expect(rng).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('aplicarDano', () => {
@@ -32,8 +45,10 @@ describe('aplicarDano', () => {
   const defender = createCharacterSheet(config, 'Goblin', { forca: 1, destreza: 1, intelecto: 1 });
 
   it('subtrai o dano do recurso de HP', () => {
+    const originalHp = defender.resources.hp;
+    expect(originalHp).toBeDefined();
     const updated = aplicarDano(config, defender, 5);
-    expect(updated.resources.hp).toBe(defender.resources.hp - 5);
+    expect(updated.resources.hp).toBe((originalHp as number) - 5);
   });
 
   it('não deixa o recurso de HP ficar negativo', () => {

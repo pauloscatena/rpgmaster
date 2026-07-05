@@ -11,7 +11,13 @@ describe('calcularIniciativa', () => {
   it('ordena os participantes por iniciativa decrescente', () => {
     const rolls = [0, 0.9]; // Aria: d20 rng=0 -> 1 + forca 5 = 6; Goblin: d20 rng=0.9 -> 19 + forca 1 = 20
     let i = 0;
-    const rng = () => rolls[i++];
+    const rng = () => {
+      const value = rolls[i++];
+      if (value === undefined) {
+        throw new Error('rng chamado mais vezes do que o esperado no teste');
+      }
+      return value;
+    };
     const state = calcularIniciativa(
       config,
       [
@@ -53,5 +59,15 @@ describe('avancarTurno e turnoAtual', () => {
       current = avancarTurno(current);
     }
     expect(current.currentIndex).toBe(state.currentIndex);
+  });
+
+  it('avancarTurno lança erro quando o estado de combate não tem combatentes', () => {
+    const emptyState = { order: [], currentIndex: 0 };
+    expect(() => avancarTurno(emptyState)).toThrow(/Não há combatentes/);
+  });
+
+  it('turnoAtual lança erro quando o estado de combate não tem combatentes', () => {
+    const emptyState = { order: [], currentIndex: 0 };
+    expect(() => turnoAtual(emptyState)).toThrow(/Não há combatentes/);
   });
 });
