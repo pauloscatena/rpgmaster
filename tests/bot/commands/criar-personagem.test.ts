@@ -185,4 +185,38 @@ describe('/criar-personagem handleModalSubmit', () => {
     const character = await getCharacterByPlayer(pool, campaign.id, 'player-1');
     expect(character?.sheet.attributes).toEqual({ forca: -2, destreza: 2, intelecto: 1 });
   });
+
+  it('preserva o nome completo do personagem quando ele contém dois-pontos', async () => {
+    const values: Record<string, string> = { forca: '3', destreza: '2', intelecto: '1' };
+    const nomeComDoisPontos = 'Sir Reginald: The Bold';
+    const interaction = {
+      customId: `criar-personagem:${campaign.id}:${nomeComDoisPontos}`,
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      user: { id: 'player-1' },
+      fields: { getTextInputValue: (key: string) => values[key] },
+      reply: vi.fn(),
+    } as any;
+    await handleModalSubmit(interaction, pool);
+    const character = await getCharacterByPlayer(pool, campaign.id, 'player-1');
+    expect(character?.sheet.name).toBe(nomeComDoisPontos);
+    expect(interaction.reply).toHaveBeenCalledWith(expect.stringContaining(nomeComDoisPontos));
+  });
+
+  it('extrai corretamente o campaignId quando o nome do personagem contém dois-pontos', async () => {
+    const values: Record<string, string> = { forca: '3', destreza: '2', intelecto: '1' };
+    const reply = vi.fn();
+    const interaction = {
+      customId: `criar-personagem:campanha-inexistente:Sir Reginald: The Bold`,
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      user: { id: 'player-1' },
+      fields: { getTextInputValue: (key: string) => values[key] },
+      reply,
+    } as any;
+    await handleModalSubmit(interaction, pool);
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringMatching(/campanha não encontrada/i) }));
+    const character = await getCharacterByPlayer(pool, campaign.id, 'player-1');
+    expect(character).toBeNull();
+  });
 });

@@ -55,7 +55,11 @@ export async function execute(interaction: ChatInputCommandInteraction, pool: Po
 }
 
 export async function handleModalSubmit(interaction: ModalSubmitInteraction, pool: Pool): Promise<void> {
-  const [, campaignId, nome] = interaction.customId.split(':');
+  const prefix = 'criar-personagem:';
+  const afterPrefix = interaction.customId.slice(prefix.length);
+  const separatorIndex = afterPrefix.indexOf(':');
+  const campaignId = separatorIndex === -1 ? afterPrefix : afterPrefix.slice(0, separatorIndex);
+  const nome = separatorIndex === -1 ? '' : afterPrefix.slice(separatorIndex + 1);
   const guildId = interaction.guildId;
   const channelId = interaction.channelId;
   if (!guildId || !channelId || !nome) return;
