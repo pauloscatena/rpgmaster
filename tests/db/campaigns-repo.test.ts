@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Pool } from 'pg';
 import { createTestPool } from '../../src/db/test-db';
-import { createCampaign, getCampaignByChannel } from '../../src/db/campaigns-repo';
+import { createCampaign, getCampaignByChannel, updateSessionSummary } from '../../src/db/campaigns-repo';
 import { defaultRulesetConfig } from '../../src/rules-engine';
 
 describe('campaigns-repo', () => {
@@ -49,5 +49,17 @@ describe('campaigns-repo', () => {
       status: 'draft',
     });
     expect(campaign.status).toBe('draft');
+  });
+
+  it('atualiza o resumo da sessão de uma campanha', async () => {
+    const campaign = await createCampaign(pool, {
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      name: 'A Torre Esquecida',
+      rulesetConfig: defaultRulesetConfig(),
+    });
+    await updateSessionSummary(pool, campaign.id, 'Aria entrou na torre.');
+    const updated = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
+    expect(updated?.sessionSummary).toBe('Aria entrou na torre.');
   });
 });

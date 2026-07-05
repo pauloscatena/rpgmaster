@@ -68,3 +68,7 @@ export async function getCampaignByChannel(
   ]);
   return result.rows[0] ? rowToCampaign(result.rows[0]) : null;
 }
+
+export async function updateSessionSummary(pool: Pool, campaignId: string, sessionSummary: string): Promise<void> {
+  await pool.query(`UPDATE campaigns SET session_summary = $2 WHERE id = $1`, [campaignId, sessionSummary]);
+}
