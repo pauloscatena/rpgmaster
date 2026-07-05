@@ -61,11 +61,27 @@ describe('handleMessage', () => {
     expect(llmProvider.runTurn).not.toHaveBeenCalled();
   });
 
+  it('ignora mensagens em campanha com status draft', async () => {
+    const llmProvider = makeLlmProvider();
+    await createCampaign(pool, {
+      guildId: 'guild-1',
+      channelId: 'channel-draft',
+      name: 'Campanha em rascunho',
+      rulesetConfig: defaultRulesetConfig(),
+      status: 'draft',
+    });
+    const message = makeMessage('oi');
+    message.channelId = 'channel-draft';
+    await handleMessage(message, pool, llmProvider);
+    expect(llmProvider.runTurn).not.toHaveBeenCalled();
+  });
+
   it('pede para criar personagem quando o autor não tem ficha na campanha', async () => {
     const llmProvider = makeLlmProvider();
     const message = makeMessage('eu examino a sala', 'player-sem-ficha');
     await handleMessage(message, pool, llmProvider);
     expect(message._replies[0]).toMatch(/criar-personagem/);
+    expect(llmProvider.runTurn).not.toHaveBeenCalled();
   });
 
   it('chama o provedor de LLM e responde com a narração', async () => {
