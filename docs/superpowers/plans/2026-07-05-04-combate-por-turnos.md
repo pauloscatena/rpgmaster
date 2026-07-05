@@ -872,14 +872,14 @@ git commit -m "feat: add /iniciar-combate command"
 ### Task 5: Enforcement de turno e tools de combate no handler de mensagens
 
 **Files:**
-- Modify: `src/llm/context.ts` (Plano 3, Task 4) — `buildSystemPrompt` ganha `inCombat`
-- Modify: `tests/llm/context.test.ts` (Plano 3, Task 4)
-- Modify: `src/bot/message-handler.ts` (Plano 3, Task 6)
-- Modify: `tests/bot/message-handler.test.ts` (Plano 3, Task 6)
+- Modify: `src/llm/context.ts` (Plano 3, Task 6) — `buildSystemPrompt` ganha `inCombat`
+- Modify: `tests/llm/context.test.ts` (Plano 3, Task 6)
+- Modify: `src/bot/message-handler.ts` (Plano 3, Task 8)
+- Modify: `tests/bot/message-handler.test.ts` (Plano 3, Task 8)
 
 **Interfaces:**
-- Consumes: `getCombatState` de `src/db/combat-repo.ts` (Task 2); `resolverAtaqueTool`, `aplicarDanoTool`, `avancarTurnoTool` de `src/llm/combat-tools.ts` (Task 3); `turnoAtual` de `src/rules-engine`.
-- Produces: `buildSystemPrompt` aceita `inCombat?: boolean`; `handleMessage` recusa ações fora de turno antes de chamar o Claude e injeta as tools de combate quando há combate ativo.
+- Consumes: `getCombatState` de `src/db/combat-repo.ts` (Task 2); `resolverAtaqueTool`, `aplicarDanoTool`, `avancarTurnoTool` de `src/llm/combat-tools.ts` (Task 3); `turnoAtual` de `src/rules-engine`; `LlmProvider` de `src/llm/provider.ts` (Plano 3, Task 1).
+- Produces: `buildSystemPrompt` aceita `inCombat?: boolean`; `handleMessage` recusa ações fora de turno antes de chamar o provedor de LLM e injeta as tools de combate quando há combate ativo. `handleMessage` continua dependendo só da interface `LlmProvider`, nunca de um SDK específico — a troca de provedor (Claude/Ollama) não afeta este arquivo.
 
 - [ ] **Step 1: Escrever testes falhos**
 
@@ -901,23 +901,27 @@ Substituir `tests/bot/message-handler.test.ts` inteiro por:
 ```ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Pool } from 'pg';
-import type Anthropic from '@anthropic-ai/sdk';
 import { createTestPool } from '../../src/db/test-db';
 import { createCampaign, getCampaignByChannel } from '../../src/db/campaigns-repo';
 import { createCharacter } from '../../src/db/characters-repo';
 import { saveCombatState } from '../../src/db/combat-repo';
 import { defaultRulesetConfig, createCharacterSheet } from '../../src/rules-engine';
 import { handleMessage } from '../../src/bot/message-handler';
-import * as orchestrator from '../../src/llm/orchestrator';
+import type { LlmProvider } from '../../src/llm/provider';
 
 describe('handleMessage', () => {
   let pool: Pool;
-  const claudeClient = {} as Anthropic;
   let campaignId: string;
   let ariaId: string;
 
+  function makeLlmProvider(overrides: Partial<LlmProvider> = {}): LlmProvider {
+    return {
+      runTurn: vi.fn().mockResolvedValue({ narration: 'Você vê uma sala empoeirada.', toolCalls: [] }),
+      ...overrides,
+    };
+  }
+
   beforeEach(async () => {
-    vi.restoreAllMocks();
     pool = createTestPool();
     await createCampaign(pool, { guildId: 'guild-1', channelId: 'channel-1', name: 'Teste', rulesetConfig: defaultRulesetConfig() });
     const campaign = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
@@ -945,21 +949,22 @@ describe('handleMessage', () => {
   }
 
   it('ignora mensagens de outros bots', async () => {
-    const spy = vi.spyOn(orchestrator, 'runGameMasterTurn');
-    await handleMessage(makeMessage('oi', 'bot-1', true), pool, claudeClient);
-    expect(spy).not.toHaveBeenCalled();
+    const llmProvider = makeLlmProvider();
+    await handleMessage(makeMessage('oi', 'bot-1', true), pool, llmProvider);
+    expect(llmProvider.runTurn).not.toHaveBeenCalled();
   });
 
   it('pede para criar personagem quando o autor não tem ficha na campanha', async () => {
+    const llmProvider = makeLlmProvider();
     const message = makeMessage('eu examino a sala', 'player-sem-ficha');
-    await handleMessage(message, pool, claudeClient);
+    await handleMessage(message, pool, llmProvider);
     expect(message._replies[0]).toMatch(/criar-personagem/);
   });
 
-  it('fora de combate, chama o orquestrador e responde com a narração', async () => {
-    vi.spyOn(orchestrator, 'runGameMasterTurn').mockResolvedValue({ narration: 'Você vê uma sala empoeirada.', toolCalls: [] });
+  it('fora de combate, chama o provedor de LLM e responde com a narração', async () => {
+    const llmProvider = makeLlmProvider();
     const message = makeMessage('eu examino a sala');
-    await handleMessage(message, pool, claudeClient);
+    await handleMessage(message, pool, llmProvider);
     expect(message._replies[0]).toBe('Você vê uma sala empoeirada.');
   });
 
@@ -976,15 +981,15 @@ describe('handleMessage', () => {
       ],
       currentIndex: 0,
     });
-    const spy = vi.spyOn(orchestrator, 'runGameMasterTurn');
+    const llmProvider = makeLlmProvider();
     const message = makeMessage('eu ataco o goblin');
-    await handleMessage(message, pool, claudeClient);
-    expect(spy).not.toHaveBeenCalled();
+    await handleMessage(message, pool, llmProvider);
+    expect(llmProvider.runTurn).not.toHaveBeenCalled();
     expect(message._replies[0]).toMatch(/não é sua vez/i);
     expect(message._replies[0]).toMatch(/goblin/i);
   });
 
-  it('em combate, na vez do autor, chama o orquestrador com as tools de combate', async () => {
+  it('em combate, na vez do autor, chama o provedor de LLM com as tools de combate', async () => {
     await saveCombatState(pool, {
       campaignId,
       combatants: [
@@ -997,11 +1002,13 @@ describe('handleMessage', () => {
       ],
       currentIndex: 0,
     });
-    const spy = vi.spyOn(orchestrator, 'runGameMasterTurn').mockResolvedValue({ narration: 'Você ataca o goblin!', toolCalls: [] });
+    const llmProvider = makeLlmProvider({
+      runTurn: vi.fn().mockResolvedValue({ narration: 'Você ataca o goblin!', toolCalls: [] }),
+    });
     const message = makeMessage('eu ataco o goblin');
-    await handleMessage(message, pool, claudeClient);
+    await handleMessage(message, pool, llmProvider);
     expect(message._replies[0]).toBe('Você ataca o goblin!');
-    const toolsArg = spy.mock.calls[0][3] as { name: string }[];
+    const toolsArg = (llmProvider.runTurn as any).mock.calls[0][2] as { name: string }[];
     expect(toolsArg.map((t) => t.name)).toEqual(
       expect.arrayContaining(['fazer_teste', 'consultar_ficha', 'resolver_ataque', 'aplicar_dano', 'avancar_turno'])
     );
@@ -1052,18 +1059,17 @@ Substituir `src/bot/message-handler.ts` inteiro por:
 ```ts
 import type { Message } from 'discord.js';
 import type { Pool } from 'pg';
-import type Anthropic from '@anthropic-ai/sdk';
 import { getCampaignByChannel, updateSessionSummary } from '../db/campaigns-repo';
 import { getCharacterByPlayer } from '../db/characters-repo';
 import { getCombatState } from '../db/combat-repo';
-import * as orchestrator from '../llm/orchestrator';
+import type { LlmProvider } from '../llm/provider';
 import { fazerTesteTool, consultarFichaTool, type ToolDefinition } from '../llm/tools';
 import { resolverAtaqueTool, aplicarDanoTool, avancarTurnoTool } from '../llm/combat-tools';
 import { buildSystemPrompt } from '../llm/context';
 import { appendToSessionSummary } from '../llm/session-summary';
 import { turnoAtual } from '../rules-engine';
 
-export async function handleMessage(message: Message, pool: Pool, claudeClient: Anthropic): Promise<void> {
+export async function handleMessage(message: Message, pool: Pool, llmProvider: LlmProvider): Promise<void> {
   if (message.author.bot) return;
   if (!message.guildId) return;
 
@@ -1099,7 +1105,7 @@ export async function handleMessage(message: Message, pool: Pool, claudeClient: 
     inCombat: Boolean(combatState),
   });
 
-  const result = await orchestrator.runGameMasterTurn(claudeClient, systemPrompt, message.content, tools, {
+  const result = await llmProvider.runTurn(systemPrompt, message.content, tools, {
     config: campaign.rulesetConfig,
     actingCharacter: character,
     rng: Math.random,

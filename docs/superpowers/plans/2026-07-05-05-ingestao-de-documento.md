@@ -748,7 +748,7 @@ git commit -m "feat: support optional campaign document in /criar-campanha"
 - Test: `tests/bot/commands/responder-campanha.test.ts`
 - Modify: `src/bot/interaction-router.ts` (Plano 4, Task 6)
 - Modify: `tests/bot/interaction-router.test.ts` (Plano 4, Task 6)
-- Modify: `src/index.ts` (Plano 3, Task 7)
+- Modify: `src/index.ts` (Plano 3, Task 9)
 - Modify: `scripts/register-commands.ts` (Plano 2, Task 8)
 
 **Interfaces:**
