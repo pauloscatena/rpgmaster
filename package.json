@@ -5,7 +5,9 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "migrate": "tsx scripts/migrate.ts",
+    "register-commands": "tsx scripts/register-commands.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
