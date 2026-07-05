@@ -67,6 +67,10 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, poo
   const attributeValues: Record<string, number> = {};
   for (const attr of campaign.rulesetConfig.attributes) {
     const raw = interaction.fields.getTextInputValue(attr);
+    if (!/^-?\d+$/.test(raw)) {
+      await interaction.reply({ content: `Valor inválido para o atributo "${attr}": deve ser um número.`, ephemeral: true });
+      return;
+    }
     const value = Number.parseInt(raw, 10);
     if (Number.isNaN(value)) {
       await interaction.reply({ content: `Valor inválido para o atributo "${attr}": deve ser um número.`, ephemeral: true });

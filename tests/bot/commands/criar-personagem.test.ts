@@ -119,4 +119,70 @@ describe('/criar-personagem handleModalSubmit', () => {
     const character = await getCharacterByPlayer(pool, campaign.id, 'player-1');
     expect(character).toBeNull();
   });
+
+  it('recusa quando um atributo enviado tem lixo alfabético misturado com dígitos', async () => {
+    const values: Record<string, string> = { forca: '3abc', destreza: '2', intelecto: '1' };
+    const reply = vi.fn();
+    const interaction = {
+      customId: `criar-personagem:${campaign.id}:Aria`,
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      user: { id: 'player-1' },
+      fields: { getTextInputValue: (key: string) => values[key] },
+      reply,
+    } as any;
+    await handleModalSubmit(interaction, pool);
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringMatching(/forca/i) }));
+    const character = await getCharacterByPlayer(pool, campaign.id, 'player-1');
+    expect(character).toBeNull();
+  });
+
+  it('recusa quando um atributo enviado é decimal em vez de inteiro', async () => {
+    const values: Record<string, string> = { forca: '3.7', destreza: '2', intelecto: '1' };
+    const reply = vi.fn();
+    const interaction = {
+      customId: `criar-personagem:${campaign.id}:Aria`,
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      user: { id: 'player-1' },
+      fields: { getTextInputValue: (key: string) => values[key] },
+      reply,
+    } as any;
+    await handleModalSubmit(interaction, pool);
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringMatching(/forca/i) }));
+    const character = await getCharacterByPlayer(pool, campaign.id, 'player-1');
+    expect(character).toBeNull();
+  });
+
+  it('recusa quando um atributo enviado tem espaços em branco ao redor do número', async () => {
+    const values: Record<string, string> = { forca: '  3', destreza: '2', intelecto: '1' };
+    const reply = vi.fn();
+    const interaction = {
+      customId: `criar-personagem:${campaign.id}:Aria`,
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      user: { id: 'player-1' },
+      fields: { getTextInputValue: (key: string) => values[key] },
+      reply,
+    } as any;
+    await handleModalSubmit(interaction, pool);
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringMatching(/forca/i) }));
+    const character = await getCharacterByPlayer(pool, campaign.id, 'player-1');
+    expect(character).toBeNull();
+  });
+
+  it('aceita um atributo negativo válido (modificador negativo)', async () => {
+    const values: Record<string, string> = { forca: '-2', destreza: '2', intelecto: '1' };
+    const interaction = {
+      customId: `criar-personagem:${campaign.id}:Aria`,
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      user: { id: 'player-1' },
+      fields: { getTextInputValue: (key: string) => values[key] },
+      reply: vi.fn(),
+    } as any;
+    await handleModalSubmit(interaction, pool);
+    const character = await getCharacterByPlayer(pool, campaign.id, 'player-1');
+    expect(character?.sheet.attributes).toEqual({ forca: -2, destreza: 2, intelecto: 1 });
+  });
 });
