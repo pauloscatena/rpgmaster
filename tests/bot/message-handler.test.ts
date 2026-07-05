@@ -63,12 +63,21 @@ describe('handleMessage', () => {
 
   it('ignora mensagens em campanha com status draft', async () => {
     const llmProvider = makeLlmProvider();
-    await createCampaign(pool, {
+    const draftCampaign = await createCampaign(pool, {
       guildId: 'guild-1',
       channelId: 'channel-draft',
       name: 'Campanha em rascunho',
       rulesetConfig: defaultRulesetConfig(),
       status: 'draft',
+    });
+    // Give the author a character in this draft campaign so that, absent the
+    // `campaign.status !== 'active'` guard, the handler would proceed all the
+    // way to calling the LLM provider instead of stopping earlier for lack of
+    // a character sheet.
+    await createCharacter(pool, {
+      campaignId: draftCampaign.id,
+      playerDiscordId: 'player-1',
+      sheet: { name: 'Aria', attributes: { forca: 3, destreza: 2, intelecto: 1 }, resources: { hp: 13 }, inventory: [] },
     });
     const message = makeMessage('oi');
     message.channelId = 'channel-draft';
