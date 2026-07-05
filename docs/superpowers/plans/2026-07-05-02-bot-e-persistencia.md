@@ -197,8 +197,10 @@ git commit -m "feat: add database schema, connection pool and test pool"
 - Test: `tests/db/campaigns-repo.test.ts`
 
 **Interfaces:**
-- Consumes: `createTestPool` de `src/db/test-db.ts` (Task 1, só em teste); `RulesetConfig` de `src/rules-engine` (Plano 1).
-- Produces: `type CampaignStatus = 'draft' | 'active'`; `interface Campaign { id: string; guildId: string; channelId: string; name: string; status: CampaignStatus; rulesetConfig: RulesetConfig; lore: string; sessionSummary: string }`; `function createCampaign(pool: Pool, params: { guildId: string; channelId: string; name: string; rulesetConfig: RulesetConfig; lore?: string; status?: CampaignStatus }): Promise<Campaign>`; `function getCampaignByChannel(pool: Pool, guildId: string, channelId: string): Promise<Campaign | null>`.
+- Consumes: `createTestPool` de `src/db/test-db.ts` (Task 1, só em teste); `ValidatedRulesetConfig` de `src/rules-engine` (Plano 1).
+- Produces: `type CampaignStatus = 'draft' | 'active'`; `interface Campaign { id: string; guildId: string; channelId: string; name: string; status: CampaignStatus; rulesetConfig: ValidatedRulesetConfig; lore: string; sessionSummary: string }`; `function createCampaign(pool: Pool, params: { guildId: string; channelId: string; name: string; rulesetConfig: ValidatedRulesetConfig; lore?: string; status?: CampaignStatus }): Promise<Campaign>`; `function getCampaignByChannel(pool: Pool, guildId: string, channelId: string): Promise<Campaign | null>`.
+
+Nota: `Campaign.rulesetConfig` usa `ValidatedRulesetConfig` (o branded type do Plano 1, Task 2 — reforçado depois da revisão final do Plano 1), não `RulesetConfig` puro. Isso garante, em tempo de compilação, que qualquer config lida de volta do banco só pode ser passada para as funções do motor de regras (`createCharacterSheet`, `fazerTeste` etc.) — todas exigem `ValidatedRulesetConfig`. O cast em `rowToCampaign` é legítimo porque esta tabela só recebe configs por meio de `createCampaign`, cujo parâmetro já exige `ValidatedRulesetConfig`.
 
 - [ ] **Step 1: Escrever testes falhos**
 
@@ -270,7 +272,7 @@ Expected: FAIL — módulo não encontrado.
 ```ts
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
-import type { RulesetConfig } from '../rules-engine';
+import type { ValidatedRulesetConfig } from '../rules-engine';
 
 export type CampaignStatus = 'draft' | 'active';
 
@@ -280,7 +282,7 @@ export interface Campaign {
   channelId: string;
   name: string;
   status: CampaignStatus;
-  rulesetConfig: RulesetConfig;
+  rulesetConfig: ValidatedRulesetConfig;
   lore: string;
   sessionSummary: string;
 }
@@ -292,7 +294,7 @@ function rowToCampaign(row: Record<string, unknown>): Campaign {
     channelId: row.channel_id as string,
     name: row.name as string,
     status: row.status as CampaignStatus,
-    rulesetConfig: row.ruleset_config as RulesetConfig,
+    rulesetConfig: row.ruleset_config as ValidatedRulesetConfig,
     lore: row.lore as string,
     sessionSummary: row.session_summary as string,
   };
@@ -304,7 +306,7 @@ export async function createCampaign(
     guildId: string;
     channelId: string;
     name: string;
-    rulesetConfig: RulesetConfig;
+    rulesetConfig: ValidatedRulesetConfig;
     lore?: string;
     status?: CampaignStatus;
   }

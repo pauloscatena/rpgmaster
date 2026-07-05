@@ -489,7 +489,7 @@ Expected: FAIL — `combat-tools.ts` não existe e `ToolContext` ainda não tem 
 Em `src/llm/tools.ts`, adicionar o import `import type { Pool } from 'pg';` no topo e alterar a interface `ToolContext` para:
 ```ts
 export interface ToolContext {
-  config: RulesetConfig;
+  config: ValidatedRulesetConfig;
   actingCharacter: StoredCharacter;
   rng: Rng;
   combat?: { pool: Pool; campaignId: string };

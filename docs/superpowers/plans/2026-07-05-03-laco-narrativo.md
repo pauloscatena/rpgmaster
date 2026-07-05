@@ -278,8 +278,10 @@ git commit -m "feat: add LlmProvider interface and multi-provider configuration"
 - Test: `tests/llm/tools.test.ts`
 
 **Interfaces:**
-- Consumes: `fazerTeste`, `RulesetConfig`, `CharacterSheet`, `Rng` de `src/rules-engine` (Plano 1); `StoredCharacter` de `src/db/characters-repo.ts` (Plano 2, só para tipar `ToolContext.actingCharacter`).
-- Produces: `interface ToolContext { config: RulesetConfig; actingCharacter: StoredCharacter; rng: Rng }`; `interface ToolDefinition { name: string; description: string; inputSchema: Record<string, unknown>; execute: (input: unknown, ctx: ToolContext) => Promise<unknown> }`; `const fazerTesteTool: ToolDefinition`; `const consultarFichaTool: ToolDefinition`.
+- Consumes: `fazerTeste`, `ValidatedRulesetConfig`, `CharacterSheet`, `Rng` de `src/rules-engine` (Plano 1); `StoredCharacter` de `src/db/characters-repo.ts` (Plano 2, só para tipar `ToolContext.actingCharacter`).
+- Produces: `interface ToolContext { config: ValidatedRulesetConfig; actingCharacter: StoredCharacter; rng: Rng }`; `interface ToolDefinition { name: string; description: string; inputSchema: Record<string, unknown>; execute: (input: unknown, ctx: ToolContext) => Promise<unknown> }`; `const fazerTesteTool: ToolDefinition`; `const consultarFichaTool: ToolDefinition`.
+
+Nota: `ToolContext.config` usa `ValidatedRulesetConfig` (Plano 1) porque `fazerTesteTool.execute` chama `fazerTeste(ctx.config, ...)`, que exige esse tipo desde o fix da revisão final do Plano 1. `campaign.rulesetConfig` (Plano 2) já é `ValidatedRulesetConfig`, então montar o `ToolContext` a partir dele não exige nenhum cast.
 
 Esta task é idêntica à do plano original (independe do provedor de LLM escolhido).
 
@@ -342,11 +344,11 @@ Expected: FAIL — módulo não encontrado.
 
 `src/llm/tools.ts`:
 ```ts
-import { fazerTeste, type CharacterSheet, type Rng, type RulesetConfig } from '../rules-engine';
+import { fazerTeste, type CharacterSheet, type Rng, type ValidatedRulesetConfig } from '../rules-engine';
 import type { StoredCharacter } from '../db/characters-repo';
 
 export interface ToolContext {
-  config: RulesetConfig;
+  config: ValidatedRulesetConfig;
   actingCharacter: StoredCharacter;
   rng: Rng;
 }

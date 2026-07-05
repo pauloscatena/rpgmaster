@@ -61,7 +61,9 @@ RPGMaster/
 - Modify: `tests/db/campaigns-repo.test.ts` (Plano 2, Task 2)
 
 **Interfaces:**
-- Produces: `Campaign` ganha `sourceDocument: string` e `clarificationNotes: string`; `createCampaign` aceita `sourceDocument?: string`; `async function saveDraftProgress(pool: Pool, campaignId: string, params: { lore: string; rulesetConfig: unknown; clarificationNotes: string }): Promise<Campaign>`; `async function activateCampaign(pool: Pool, campaignId: string, params: { lore: string; rulesetConfig: RulesetConfig }): Promise<Campaign>`.
+- Produces: `Campaign` ganha `sourceDocument: string` e `clarificationNotes: string`; `createCampaign` aceita `sourceDocument?: string`; `async function saveDraftProgress(pool: Pool, campaignId: string, params: { lore: string; rulesetConfig: unknown; clarificationNotes: string }): Promise<Campaign>`; `async function activateCampaign(pool: Pool, campaignId: string, params: { lore: string; rulesetConfig: ValidatedRulesetConfig }): Promise<Campaign>`.
+
+Nota: `Campaign.rulesetConfig`, `createCampaign` e `activateCampaign` continuam usando `ValidatedRulesetConfig` (Plano 2, já ajustado após o fix da revisão final do Plano 1) — só `saveDraftProgress` aceita `rulesetConfig: unknown`, de propósito, já que durante o rascunho a config pode estar incompleta/inválida (nunca é usada para jogar enquanto `status !== 'active'`).
 
 - [ ] **Step 1: Escrever testes falhos**
 
@@ -132,7 +134,7 @@ Substituir `src/db/campaigns-repo.ts` inteiro por:
 ```ts
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
-import type { RulesetConfig } from '../rules-engine';
+import type { ValidatedRulesetConfig } from '../rules-engine';
 
 export type CampaignStatus = 'draft' | 'active';
 
@@ -142,7 +144,7 @@ export interface Campaign {
   channelId: string;
   name: string;
   status: CampaignStatus;
-  rulesetConfig: RulesetConfig;
+  rulesetConfig: ValidatedRulesetConfig;
   lore: string;
   sessionSummary: string;
   sourceDocument: string;
@@ -156,7 +158,7 @@ function rowToCampaign(row: Record<string, unknown>): Campaign {
     channelId: row.channel_id as string,
     name: row.name as string,
     status: row.status as CampaignStatus,
-    rulesetConfig: row.ruleset_config as RulesetConfig,
+    rulesetConfig: row.ruleset_config as ValidatedRulesetConfig,
     lore: row.lore as string,
     sessionSummary: row.session_summary as string,
     sourceDocument: row.source_document as string,
@@ -170,7 +172,7 @@ export async function createCampaign(
     guildId: string;
     channelId: string;
     name: string;
-    rulesetConfig: RulesetConfig;
+    rulesetConfig: ValidatedRulesetConfig;
     lore?: string;
     status?: CampaignStatus;
     sourceDocument?: string;
@@ -226,7 +228,7 @@ export async function saveDraftProgress(
 export async function activateCampaign(
   pool: Pool,
   campaignId: string,
-  params: { lore: string; rulesetConfig: RulesetConfig }
+  params: { lore: string; rulesetConfig: ValidatedRulesetConfig }
 ): Promise<Campaign> {
   const result = await pool.query(
     `UPDATE campaigns SET lore = $2, ruleset_config = $3, status = 'active' WHERE id = $1 RETURNING *`,
