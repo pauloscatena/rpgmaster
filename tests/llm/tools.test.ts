@@ -25,6 +25,22 @@ describe('fazerTesteTool', () => {
     expect(result.total).toBe(14); // d20 rng=0.5 -> 11 + forca 3
     expect(result.success).toBe(true);
   });
+
+  it('rejeita quando attribute não é uma string', async () => {
+    await expect(fazerTesteTool.execute({ attribute: 123, difficulty: 10 }, ctx)).rejects.toThrow(
+      /attribute/
+    );
+  });
+
+  it('rejeita quando difficulty está ausente', async () => {
+    await expect(fazerTesteTool.execute({ attribute: 'forca' }, ctx)).rejects.toThrow(/difficulty/);
+  });
+
+  it('rejeita quando difficulty não é um número', async () => {
+    await expect(
+      fazerTesteTool.execute({ attribute: 'forca', difficulty: 'dez' }, ctx)
+    ).rejects.toThrow(/difficulty/);
+  });
 });
 
 describe('consultarFichaTool', () => {

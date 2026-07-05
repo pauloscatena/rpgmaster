@@ -33,7 +33,13 @@ export const fazerTesteTool: ToolDefinition = {
     required: ['attribute', 'difficulty'],
   },
   execute: async (input, ctx) => {
-    const { attribute, difficulty } = input as { attribute: string; difficulty: number };
+    const { attribute, difficulty } = input as { attribute: unknown; difficulty: unknown };
+    if (typeof attribute !== 'string' || attribute.length === 0) {
+      throw new Error('Entrada inválida para fazer_teste: "attribute" deve ser uma string.');
+    }
+    if (typeof difficulty !== 'number' || Number.isNaN(difficulty)) {
+      throw new Error('Entrada inválida para fazer_teste: "difficulty" deve ser um número.');
+    }
     return fazerTeste(ctx.config, ctx.actingCharacter.sheet, attribute, difficulty, ctx.rng);
   },
 };
