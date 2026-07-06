@@ -1,3 +1,4 @@
+import type { Pool } from 'pg';
 import { fazerTeste, type CharacterSheet, type Rng, type ValidatedRulesetConfig } from '../rules-engine';
 import type { StoredCharacter } from '../db/characters-repo';
 
@@ -5,6 +6,7 @@ export interface ToolContext {
   config: ValidatedRulesetConfig;
   actingCharacter: StoredCharacter;
   rng: Rng;
+  combat?: { pool: Pool; campaignId: string };
 }
 
 export interface ToolDefinition {
