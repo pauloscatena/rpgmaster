@@ -19,7 +19,15 @@ async function main() {
     const already = await pool.query(`SELECT 1 FROM schema_migrations WHERE filename = $1`, [file]);
     if (already.rows.length > 0) continue;
     const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
-    await pool.query(sql);
+    try {
+      await pool.query(sql);
+    } catch (err: unknown) {
+      if ((err as { code?: string }).code === '42P07') {
+        console.log(`Já existia (marcando como aplicada): ${file}`);
+      } else {
+        throw err;
+      }
+    }
     await pool.query(`INSERT INTO schema_migrations (filename) VALUES ($1)`, [file]);
     console.log(`Aplicada: ${file}`);
   }
