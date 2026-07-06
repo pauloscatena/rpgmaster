@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Pool } from 'pg';
 import { createTestPool } from '../../src/db/test-db';
-import { createCharacter, getCharacterByPlayer } from '../../src/db/characters-repo';
+import { createCharacter, getCharacterByPlayer, getCharactersByCampaign, updateCharacterResources } from '../../src/db/characters-repo';
 import type { CharacterSheet } from '../../src/rules-engine';
 
 const ariaSheet: CharacterSheet = {
@@ -48,5 +48,18 @@ describe('characters-repo', () => {
     await expect(
       createCharacter(pool, { campaignId: 'camp-1', playerDiscordId: 'player-1', sheet: ariaSheet })
     ).rejects.toThrow();
+  });
+
+  it('lista todos os personagens de uma campanha', async () => {
+    await createCharacter(pool, { campaignId: 'camp-1', playerDiscordId: 'player-1', sheet: ariaSheet });
+    await createCharacter(pool, { campaignId: 'camp-1', playerDiscordId: 'player-2', sheet: { ...ariaSheet, name: 'Bram' } });
+    const characters = await getCharactersByCampaign(pool, 'camp-1');
+    expect(characters.map((c) => c.sheet.name).sort()).toEqual(['Aria', 'Bram']);
+  });
+
+  it('atualiza os recursos de um personagem', async () => {
+    const stored = await createCharacter(pool, { campaignId: 'camp-1', playerDiscordId: 'player-1', sheet: ariaSheet });
+    const updated = await updateCharacterResources(pool, stored.id, { hp: 5 });
+    expect(updated.sheet.resources).toEqual({ hp: 5 });
   });
 });

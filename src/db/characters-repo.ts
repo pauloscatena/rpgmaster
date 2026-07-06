@@ -56,3 +56,20 @@ export async function getCharacterByPlayer(
   );
   return result.rows[0] ? rowToCharacter(result.rows[0]) : null;
 }
+
+export async function getCharactersByCampaign(pool: Pool, campaignId: string): Promise<StoredCharacter[]> {
+  const result = await pool.query(`SELECT * FROM characters WHERE campaign_id = $1`, [campaignId]);
+  return result.rows.map(rowToCharacter);
+}
+
+export async function updateCharacterResources(
+  pool: Pool,
+  characterId: string,
+  resources: Record<string, number>
+): Promise<StoredCharacter> {
+  const result = await pool.query(`UPDATE characters SET resources = $2 WHERE id = $1 RETURNING *`, [
+    characterId,
+    JSON.stringify(resources),
+  ]);
+  return rowToCharacter(result.rows[0]);
+}
