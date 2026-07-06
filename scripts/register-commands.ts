@@ -4,12 +4,18 @@ import { loadConfig } from '../src/config';
 import { data as criarCampanhaData } from '../src/bot/commands/criar-campanha';
 import { data as criarPersonagemData } from '../src/bot/commands/criar-personagem';
 import { data as iniciarCombateData } from '../src/bot/commands/iniciar-combate';
+import { data as responderCampanhaData } from '../src/bot/commands/responder-campanha';
 
 async function main() {
   const config = loadConfig();
   const rest = new REST({ version: '10' }).setToken(config.discordToken);
   await rest.put(Routes.applicationCommands(config.discordClientId), {
-    body: [criarCampanhaData.toJSON(), criarPersonagemData.toJSON(), iniciarCombateData.toJSON()],
+    body: [
+      criarCampanhaData.toJSON(),
+      criarPersonagemData.toJSON(),
+      iniciarCombateData.toJSON(),
+      responderCampanhaData.toJSON(),
+    ],
   });
   console.log('Comandos registrados com sucesso.');
 }
