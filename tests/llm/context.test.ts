@@ -24,4 +24,15 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('nenhuma lore registrada ainda');
     expect(prompt).toContain('primeira interação da campanha');
   });
+
+  it('inclui instruções de combate quando inCombat é true', () => {
+    const prompt = buildSystemPrompt({ campaignName: 'X', lore: '', sessionSummary: '', rulesetName: 'Y', inCombat: true });
+    expect(prompt).toMatch(/resolver_ataque/);
+    expect(prompt).toMatch(/avancar_turno/);
+  });
+
+  it('não menciona ferramentas de combate quando inCombat é false ou omitido', () => {
+    const prompt = buildSystemPrompt({ campaignName: 'X', lore: '', sessionSummary: '', rulesetName: 'Y' });
+    expect(prompt).not.toMatch(/resolver_ataque/);
+  });
 });

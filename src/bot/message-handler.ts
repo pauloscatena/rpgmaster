@@ -2,10 +2,13 @@ import type { Message } from 'discord.js';
 import type { Pool } from 'pg';
 import { getCampaignByChannel, updateSessionSummary } from '../db/campaigns-repo';
 import { getCharacterByPlayer } from '../db/characters-repo';
+import { getCombatState } from '../db/combat-repo';
 import type { LlmProvider } from '../llm/provider';
-import { fazerTesteTool, consultarFichaTool } from '../llm/tools';
+import { fazerTesteTool, consultarFichaTool, type ToolDefinition } from '../llm/tools';
+import { resolverAtaqueTool, aplicarDanoTool, avancarTurnoTool } from '../llm/combat-tools';
 import { buildSystemPrompt } from '../llm/context';
 import { appendToSessionSummary } from '../llm/session-summary';
+import { turnoAtual } from '../rules-engine';
 
 export async function handleMessage(message: Message, pool: Pool, llmProvider: LlmProvider): Promise<void> {
   if (message.author.bot) return;
@@ -20,20 +23,36 @@ export async function handleMessage(message: Message, pool: Pool, llmProvider: L
     return;
   }
 
+  const combatState = await getCombatState(pool, campaign.id);
+  let tools: ToolDefinition[] = [fazerTesteTool, consultarFichaTool];
+  let combatContext: { pool: Pool; campaignId: string } | undefined;
+
+  if (combatState) {
+    const currentCombatant = turnoAtual({ order: combatState.order, currentIndex: combatState.currentIndex });
+    const actingCombatant = combatState.combatants.find((c) => c.characterId === character.id);
+    if (!actingCombatant || actingCombatant.id !== currentCombatant.id) {
+      await message.reply(`Ainda não é sua vez. É a vez de **${currentCombatant.name}**.`);
+      return;
+    }
+    tools = [...tools, resolverAtaqueTool, aplicarDanoTool, avancarTurnoTool];
+    combatContext = { pool, campaignId: campaign.id };
+  }
+
   const systemPrompt = buildSystemPrompt({
     campaignName: campaign.name,
     lore: campaign.lore,
     sessionSummary: campaign.sessionSummary,
     rulesetName: campaign.rulesetConfig.name,
+    inCombat: Boolean(combatState),
   });
 
   try {
-    const result = await llmProvider.runTurn(
-      systemPrompt,
-      message.content,
-      [fazerTesteTool, consultarFichaTool],
-      { config: campaign.rulesetConfig, actingCharacter: character, rng: Math.random }
-    );
+    const result = await llmProvider.runTurn(systemPrompt, message.content, tools, {
+      config: campaign.rulesetConfig,
+      actingCharacter: character,
+      rng: Math.random,
+      combat: combatContext,
+    });
 
     await message.reply(result.narration);
 

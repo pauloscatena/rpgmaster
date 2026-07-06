@@ -3,12 +3,15 @@ import type { Pool } from 'pg';
 import { createTestPool } from '../../src/db/test-db';
 import { createCampaign, getCampaignByChannel } from '../../src/db/campaigns-repo';
 import { createCharacter } from '../../src/db/characters-repo';
-import { defaultRulesetConfig } from '../../src/rules-engine';
+import { saveCombatState } from '../../src/db/combat-repo';
+import { defaultRulesetConfig, createCharacterSheet } from '../../src/rules-engine';
 import { handleMessage } from '../../src/bot/message-handler';
 import type { LlmProvider } from '../../src/llm/provider';
 
 describe('handleMessage', () => {
   let pool: Pool;
+  let campaignId: string;
+  let ariaId: string;
 
   function makeLlmProvider(overrides: Partial<LlmProvider> = {}): LlmProvider {
     return {
@@ -26,11 +29,13 @@ describe('handleMessage', () => {
       rulesetConfig: defaultRulesetConfig(),
     });
     const campaign = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
-    await createCharacter(pool, {
+    campaignId = campaign!.id;
+    const aria = await createCharacter(pool, {
       campaignId: campaign!.id,
       playerDiscordId: 'player-1',
       sheet: { name: 'Aria', attributes: { forca: 3, destreza: 2, intelecto: 1 }, resources: { hp: 13 }, inventory: [] },
     });
+    ariaId = aria.id;
   });
 
   function makeMessage(content: string, authorId = 'player-1', isBot = false) {
@@ -140,5 +145,51 @@ describe('handleMessage', () => {
 
     const campaignAfter = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
     expect(campaignAfter?.sessionSummary).toBe(campaignBefore?.sessionSummary);
+  });
+
+  it('em combate, recusa a ação quando não é o turno do autor', async () => {
+    await saveCombatState(pool, {
+      campaignId,
+      combatants: [
+        { id: ariaId, name: 'Aria', isNpc: false, characterId: ariaId, sheet: createCharacterSheet(defaultRulesetConfig(), 'Aria', { forca: 3, destreza: 2, intelecto: 1 }) },
+        { id: 'npc-1', name: 'Goblin', isNpc: true, sheet: createCharacterSheet(defaultRulesetConfig(), 'Goblin', { forca: 1, destreza: 1, intelecto: 1 }) },
+      ],
+      order: [
+        { id: 'npc-1', name: 'Goblin', initiative: 15 },
+        { id: ariaId, name: 'Aria', initiative: 10 },
+      ],
+      currentIndex: 0,
+    });
+    const llmProvider = makeLlmProvider();
+    const message = makeMessage('eu ataco o goblin');
+    await handleMessage(message, pool, llmProvider);
+    expect(llmProvider.runTurn).not.toHaveBeenCalled();
+    expect(message._replies[0]).toMatch(/não é sua vez/i);
+    expect(message._replies[0]).toMatch(/goblin/i);
+  });
+
+  it('em combate, na vez do autor, chama o provedor de LLM com as tools de combate', async () => {
+    await saveCombatState(pool, {
+      campaignId,
+      combatants: [
+        { id: ariaId, name: 'Aria', isNpc: false, characterId: ariaId, sheet: createCharacterSheet(defaultRulesetConfig(), 'Aria', { forca: 3, destreza: 2, intelecto: 1 }) },
+        { id: 'npc-1', name: 'Goblin', isNpc: true, sheet: createCharacterSheet(defaultRulesetConfig(), 'Goblin', { forca: 1, destreza: 1, intelecto: 1 }) },
+      ],
+      order: [
+        { id: ariaId, name: 'Aria', initiative: 15 },
+        { id: 'npc-1', name: 'Goblin', initiative: 10 },
+      ],
+      currentIndex: 0,
+    });
+    const llmProvider = makeLlmProvider({
+      runTurn: vi.fn().mockResolvedValue({ narration: 'Você ataca o goblin!', toolCalls: [] }),
+    });
+    const message = makeMessage('eu ataco o goblin');
+    await handleMessage(message, pool, llmProvider);
+    expect(message._replies[0]).toBe('Você ataca o goblin!');
+    const toolsArg = (llmProvider.runTurn as any).mock.calls[0][2] as { name: string }[];
+    expect(toolsArg.map((t) => t.name)).toEqual(
+      expect.arrayContaining(['fazer_teste', 'consultar_ficha', 'resolver_ataque', 'aplicar_dano', 'avancar_turno'])
+    );
   });
 });
