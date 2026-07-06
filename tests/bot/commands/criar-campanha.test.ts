@@ -95,6 +95,16 @@ describe('/criar-campanha execute', () => {
     expect(campaign?.lore).toBe('Uma torre antiga.');
   });
 
+  it('responde com uma mensagem de erro amigável quando o processamento do documento falha', async () => {
+    vi.spyOn(ingestion, 'extractCampaignDocument').mockRejectedValue(new Error('O modelo não devolveu uma extração estruturada.'));
+    const interaction = makeInteraction({ attachmentUrl: 'https://discord.example/doc.txt' });
+    await execute(interaction, pool, claudeClient);
+    expect(interaction._lastReply).toMatch(/não consegui processar o documento/i);
+    expect(interaction._lastReply).toMatch(/criar-campanha/);
+    const campaign = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
+    expect(campaign).toBeNull();
+  });
+
   it('entra em rascunho e pergunta ao usuário quando a extração fica incompleta', async () => {
     vi.spyOn(ingestion, 'extractCampaignDocument').mockResolvedValue({
       lore: 'Uma torre antiga.',

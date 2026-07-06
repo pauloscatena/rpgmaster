@@ -41,38 +41,49 @@ export async function execute(
   }
 
   await interaction.deferReply();
-  const documentText = await fetchAttachmentText(attachment.url);
-  const extraction = await ingestion.extractCampaignDocument(claudeClient, documentText);
-  const validation = validateRulesetConfig(extraction.rulesetConfig);
 
-  if (extraction.clarifyingQuestions.length === 0 && validation.success) {
+  try {
+    const documentText = await fetchAttachmentText(attachment.url);
+    const extraction = await ingestion.extractCampaignDocument(claudeClient, documentText);
+
+    const validation = validateRulesetConfig(extraction.rulesetConfig);
+
+    if (extraction.clarifyingQuestions.length === 0 && validation.success) {
+      const campaign = await createCampaign(pool, {
+        guildId,
+        channelId,
+        name: nome,
+        rulesetConfig: validation.data,
+        lore: extraction.lore,
+        sourceDocument: documentText,
+      });
+      await interaction.editReply(
+        `Campanha "${campaign.name}" criada a partir do documento! Sistema de regras: ${campaign.rulesetConfig.name}.`
+      );
+      return;
+    }
+
+    const questions = [...extraction.clarifyingQuestions, ...formatValidationIssues(validation)];
     const campaign = await createCampaign(pool, {
       guildId,
       channelId,
       name: nome,
-      rulesetConfig: validation.data,
+      rulesetConfig: defaultRulesetConfig(),
       lore: extraction.lore,
       sourceDocument: documentText,
+      status: 'draft',
     });
     await interaction.editReply(
-      `Campanha "${campaign.name}" criada a partir do documento! Sistema de regras: ${campaign.rulesetConfig.name}.`
+      `Recebi o documento, mas preciso confirmar algumas coisas antes de liberar "${campaign.name}" para jogar:\n` +
+        questions.map((q, i) => `${i + 1}. ${q}`).join('\n') +
+        '\n\nResponda com `/responder-campanha resposta:<sua resposta>`.'
+    );
+    return;
+  } catch (err) {
+    console.error('Erro ao processar documento da campanha:', err);
+    await interaction.editReply(
+      'Não consegui processar o documento da campanha. Tente novamente com `/criar-campanha`.'
     );
     return;
   }
-
-  const campaign = await createCampaign(pool, {
-    guildId,
-    channelId,
-    name: nome,
-    rulesetConfig: defaultRulesetConfig(),
-    lore: extraction.lore,
-    sourceDocument: documentText,
-    status: 'draft',
-  });
-  const questions = [...extraction.clarifyingQuestions, ...formatValidationIssues(validation)];
-  await interaction.editReply(
-    `Recebi o documento, mas preciso confirmar algumas coisas antes de liberar "${campaign.name}" para jogar:\n` +
-      questions.map((q, i) => `${i + 1}. ${q}`).join('\n') +
-      '\n\nResponda com `/responder-campanha resposta:<sua resposta>`.'
-  );
 }
