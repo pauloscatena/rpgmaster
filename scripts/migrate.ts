@@ -7,9 +7,23 @@ import { loadConfig } from '../src/config';
 async function main() {
   const config = loadConfig();
   const pool = createPool(config.databaseUrl);
-  const sql = fs.readFileSync(path.join(__dirname, '../src/db/migrations/001_init.sql'), 'utf-8');
-  await pool.query(sql);
-  console.log('Migração aplicada com sucesso.');
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS schema_migrations (filename TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`
+  );
+  const migrationsDir = path.join(__dirname, '../src/db/migrations');
+  const files = fs
+    .readdirSync(migrationsDir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
+  for (const file of files) {
+    const already = await pool.query(`SELECT 1 FROM schema_migrations WHERE filename = $1`, [file]);
+    if (already.rows.length > 0) continue;
+    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
+    await pool.query(sql);
+    await pool.query(`INSERT INTO schema_migrations (filename) VALUES ($1)`, [file]);
+    console.log(`Aplicada: ${file}`);
+  }
+  console.log('Migrações em dia.');
   await pool.end();
 }
 

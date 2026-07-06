@@ -25,4 +25,18 @@ describe('createTestPool', () => {
       )
     ).rejects.toThrow();
   });
+
+  it('aplica a migração de combate e permite inserir combatants_json', async () => {
+    const pool = createTestPool();
+    await pool.query(
+      `INSERT INTO campaigns (id, guild_id, channel_id, name, status, ruleset_config, lore)
+       VALUES ('c1', 'g1', 'ch1', 'Teste', 'active', '{}', '')`
+    );
+    const result = await pool.query(
+      `INSERT INTO combat_states (campaign_id, order_json, current_index, combatants_json)
+       VALUES ('c1', '[]', 0, '[]')
+       RETURNING combatants_json`
+    );
+    expect(result.rows[0].combatants_json).toEqual([]);
+  });
 });
