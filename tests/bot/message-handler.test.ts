@@ -115,4 +115,30 @@ describe('handleMessage', () => {
     const campaign = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
     expect(campaign?.sessionSummary).toContain('sala empoeirada');
   });
+
+  it('não deixa o erro do runTurn propagar e responde com mensagem amigável', async () => {
+    const llmProvider = makeLlmProvider({
+      runTurn: vi.fn().mockRejectedValue(new Error('boom')),
+    });
+    const message = makeMessage('eu examino a sala');
+
+    await expect(handleMessage(message, pool, llmProvider)).resolves.toBeUndefined();
+
+    expect(message._replies).toHaveLength(1);
+    expect(message._replies[0]).not.toBe('Você vê uma sala empoeirada.');
+    expect(message._replies[0]).toMatch(/mestre teve um problema/i);
+  });
+
+  it('não atualiza o resumo da sessão quando o runTurn falha', async () => {
+    const llmProvider = makeLlmProvider({
+      runTurn: vi.fn().mockRejectedValue(new Error('boom')),
+    });
+    const message = makeMessage('eu examino a sala');
+    const campaignBefore = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
+
+    await handleMessage(message, pool, llmProvider);
+
+    const campaignAfter = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
+    expect(campaignAfter?.sessionSummary).toBe(campaignBefore?.sessionSummary);
+  });
 });

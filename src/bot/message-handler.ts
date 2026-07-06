@@ -27,16 +27,25 @@ export async function handleMessage(message: Message, pool: Pool, llmProvider: L
     rulesetName: campaign.rulesetConfig.name,
   });
 
-  const result = await llmProvider.runTurn(
-    systemPrompt,
-    message.content,
-    [fazerTesteTool, consultarFichaTool],
-    { config: campaign.rulesetConfig, actingCharacter: character, rng: Math.random }
-  );
+  try {
+    const result = await llmProvider.runTurn(
+      systemPrompt,
+      message.content,
+      [fazerTesteTool, consultarFichaTool],
+      { config: campaign.rulesetConfig, actingCharacter: character, rng: Math.random }
+    );
 
-  await message.reply(result.narration);
+    await message.reply(result.narration);
 
-  const exchange = `${character.sheet.name}: ${message.content}\nMestre: ${result.narration}`;
-  const updatedSummary = appendToSessionSummary(campaign.sessionSummary, exchange);
-  await updateSessionSummary(pool, campaign.id, updatedSummary);
+    const exchange = `${character.sheet.name}: ${message.content}\nMestre: ${result.narration}`;
+    const updatedSummary = appendToSessionSummary(campaign.sessionSummary, exchange);
+    await updateSessionSummary(pool, campaign.id, updatedSummary);
+  } catch (err) {
+    console.error('Erro ao processar turno do LLM:', err);
+    try {
+      await message.reply('O mestre teve um problema para responder. Tente novamente em instantes.');
+    } catch (replyErr) {
+      console.error('Erro ao enviar mensagem de fallback:', replyErr);
+    }
+  }
 }
