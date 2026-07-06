@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import { routeInteraction } from '../../src/bot/interaction-router';
 import * as criarCampanha from '../../src/bot/commands/criar-campanha';
 import * as criarPersonagem from '../../src/bot/commands/criar-personagem';
+import * as iniciarCombate from '../../src/bot/commands/iniciar-combate';
 
 describe('routeInteraction', () => {
   const pool = {} as Pool;
@@ -51,5 +52,27 @@ describe('routeInteraction', () => {
       commandName: 'comando-desconhecido',
     } as any;
     await expect(routeInteraction(interaction, pool)).resolves.toBeUndefined();
+  });
+
+  it('despacha /iniciar-combate para iniciarCombate.execute', async () => {
+    const spy = vi.spyOn(iniciarCombate, 'execute').mockResolvedValue(undefined);
+    const interaction = {
+      isChatInputCommand: () => true,
+      isModalSubmit: () => false,
+      commandName: 'iniciar-combate',
+    } as any;
+    await routeInteraction(interaction, pool);
+    expect(spy).toHaveBeenCalledWith(interaction, pool);
+  });
+
+  it('despacha modal iniciar-combate:* para iniciarCombate.handleModalSubmit', async () => {
+    const spy = vi.spyOn(iniciarCombate, 'handleModalSubmit').mockResolvedValue(undefined);
+    const interaction = {
+      isChatInputCommand: () => false,
+      isModalSubmit: () => true,
+      customId: 'iniciar-combate:abc123:Goblin',
+    } as any;
+    await routeInteraction(interaction, pool);
+    expect(spy).toHaveBeenCalledWith(interaction, pool);
   });
 });
