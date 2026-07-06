@@ -16,6 +16,8 @@ describe('buildCharacterModal', () => {
     rulesetConfig: defaultRulesetConfig(),
     lore: '',
     sessionSummary: '',
+    sourceDocument: '',
+    clarificationNotes: '',
   };
 
   it('gera um customId codificando campanha e nome do personagem', () => {

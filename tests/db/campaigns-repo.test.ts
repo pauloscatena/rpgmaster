@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Pool } from 'pg';
 import { createTestPool } from '../../src/db/test-db';
-import { createCampaign, getCampaignByChannel, updateSessionSummary } from '../../src/db/campaigns-repo';
+import { createCampaign, getCampaignByChannel, updateSessionSummary, saveDraftProgress, activateCampaign } from '../../src/db/campaigns-repo';
 import { defaultRulesetConfig } from '../../src/rules-engine';
 
 describe('campaigns-repo', () => {
@@ -61,5 +61,52 @@ describe('campaigns-repo', () => {
     await updateSessionSummary(pool, campaign.id, 'Aria entrou na torre.');
     const updated = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
     expect(updated?.sessionSummary).toBe('Aria entrou na torre.');
+  });
+
+  it('salva o documento de origem ao criar uma campanha', async () => {
+    const campaign = await createCampaign(pool, {
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      name: 'Teste',
+      rulesetConfig: defaultRulesetConfig(),
+      sourceDocument: 'texto do documento',
+      status: 'draft',
+    });
+    expect(campaign.sourceDocument).toBe('texto do documento');
+    expect(campaign.clarificationNotes).toBe('');
+  });
+
+  it('salva o progresso de um rascunho', async () => {
+    const campaign = await createCampaign(pool, {
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      name: 'Teste',
+      rulesetConfig: defaultRulesetConfig(),
+      status: 'draft',
+    });
+    const updated = await saveDraftProgress(pool, campaign.id, {
+      lore: 'Nova lore',
+      rulesetConfig: { incompleto: true },
+      clarificationNotes: 'O dado é d20.',
+    });
+    expect(updated.lore).toBe('Nova lore');
+    expect(updated.clarificationNotes).toBe('O dado é d20.');
+    expect(updated.status).toBe('draft');
+  });
+
+  it('ativa uma campanha em rascunho', async () => {
+    const campaign = await createCampaign(pool, {
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      name: 'Teste',
+      rulesetConfig: defaultRulesetConfig(),
+      status: 'draft',
+    });
+    const activated = await activateCampaign(pool, campaign.id, {
+      lore: 'Lore final',
+      rulesetConfig: defaultRulesetConfig(),
+    });
+    expect(activated.status).toBe('active');
+    expect(activated.lore).toBe('Lore final');
   });
 });
