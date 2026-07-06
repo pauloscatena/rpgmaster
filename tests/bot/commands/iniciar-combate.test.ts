@@ -129,4 +129,21 @@ describe('/iniciar-combate handleModalSubmit', () => {
     const state = await getCombatState(pool, campaignId);
     expect(state).toBeNull();
   });
+
+  it('preserva o nome completo do inimigo quando ele contém dois-pontos', async () => {
+    const values: Record<string, string> = { forca: '1', destreza: '1', intelecto: '1' };
+    const nomeComDoisPontos = 'Capitão: Vilão';
+    const reply = vi.fn();
+    const interaction = {
+      customId: `iniciar-combate:${campaignId}:${nomeComDoisPontos}`,
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      fields: { getTextInputValue: (key: string) => values[key] },
+      reply,
+    } as any;
+    await handleModalSubmit(interaction, pool);
+    const state = await getCombatState(pool, campaignId);
+    expect(state?.combatants.map((c) => c.name)).toContain(nomeComDoisPontos);
+    expect(reply).toHaveBeenCalledWith(expect.stringContaining(nomeComDoisPontos));
+  });
 });
