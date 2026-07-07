@@ -52,8 +52,8 @@ describe('/responder-campanha execute', () => {
     expect(interaction._lastReply.content).toMatch(/não há campanha em rascunho/i);
   });
 
-  it('ativa a campanha quando a nova extração fica completa e válida', async () => {
-    vi.spyOn(ingestion, 'extractCampaignDocument').mockResolvedValue({
+  it('nunca ativa a campanha sozinho, mesmo quando a extração fica completa', async () => {
+    vi.spyOn(ingestion, 'extractResolvedConfig').mockResolvedValue({
       lore: 'Uma torre antiga.',
       rulesetConfig: {
         name: 'Sistema Caseiro',
@@ -64,22 +64,22 @@ describe('/responder-campanha execute', () => {
         attackAttribute: 'vigor',
         damageDie: 6,
         defenseValue: 11,
-      },
+      } as any,
       clarifyingQuestions: [],
     });
     const interaction = makeInteraction('o dado de teste é d20');
     await execute(interaction, pool, claudeClient);
     const campaign = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
-    expect(campaign?.status).toBe('active');
+    expect(campaign?.status).toBe('draft');
     expect(campaign?.rulesetConfig.name).toBe('Sistema Caseiro');
-    expect(interaction._lastReply).toMatch(/pronta para jogar/i);
+    expect(interaction._lastReply).toMatch(/\/iniciar-campanha/);
   });
 
   it('permanece em rascunho e acumula as notas quando ainda faltam informações', async () => {
-    vi.spyOn(ingestion, 'extractCampaignDocument').mockResolvedValue({
+    vi.spyOn(ingestion, 'extractResolvedConfig').mockResolvedValue({
       lore: 'Uma torre antiga.',
-      rulesetConfig: { name: 'Sistema Caseiro' },
-      clarifyingQuestions: ['Qual é o dado de dano?'],
+      rulesetConfig: defaultRulesetConfig(),
+      clarifyingQuestions: ['Qual é o dado de dano? Sugiro d6.'],
     });
     const interaction = makeInteraction('o dado de teste é d20');
     await execute(interaction, pool, claudeClient);
@@ -90,7 +90,7 @@ describe('/responder-campanha execute', () => {
   });
 
   it('responde com uma mensagem de erro amigável e mantém o rascunho intacto quando a extração falha', async () => {
-    vi.spyOn(ingestion, 'extractCampaignDocument').mockRejectedValue(
+    vi.spyOn(ingestion, 'extractResolvedConfig').mockRejectedValue(
       new Error('O modelo não devolveu uma extração estruturada.')
     );
     const interaction = makeInteraction('o dado de teste é d20');
