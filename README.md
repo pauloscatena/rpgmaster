@@ -22,6 +22,7 @@ Com o Plano 5, o MVP descrito no design está completo.
 
 - Fim de combate automático (`verificarFimDeCombate` em `src/rules-engine/combat.ts`), antes um gap Minor deliberado do Plano 4.
 - Id do modelo Claude centralizado em `CLAUDE_MODEL` (`src/config.ts`), removendo a duplicação de literal entre `extract.ts` e `claude-provider.ts`.
+- Anexos em PDF agora são extraídos de verdade (`pdf-parse`) em vez de lidos como texto cru — antes isso derrubava a criação da campanha com um erro de encoding no Postgres sempre que o PDF continha bytes 0x00.
 
 ## Stack técnica
 
