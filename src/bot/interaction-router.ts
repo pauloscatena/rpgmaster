@@ -10,10 +10,15 @@ import * as pausarCampanha from './commands/pausar-campanha';
 import * as retomarCampanha from './commands/retomar-campanha';
 import * as minhaFicha from './commands/minha-ficha';
 
-export async function routeInteraction(interaction: Interaction, pool: Pool, claudeClient: Anthropic): Promise<void> {
+export async function routeInteraction(
+  interaction: Interaction,
+  pool: Pool,
+  claudeClient: Anthropic,
+  googleServiceAccountKey: string | undefined
+): Promise<void> {
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === 'criar-campanha') {
-      await criarCampanha.execute(interaction, pool, claudeClient);
+      await criarCampanha.execute(interaction, pool, claudeClient, googleServiceAccountKey);
       return;
     }
     if (interaction.commandName === 'criar-personagem') {
