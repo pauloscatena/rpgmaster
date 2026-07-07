@@ -70,4 +70,16 @@ describe('loadConfig', () => {
       loadConfig({ ...claudeEnv, LLM_PROVIDER: 'ollama', OLLAMA_BASE_URL: 'http://localhost:11434' })
     ).toThrow(/OLLAMA_MODEL/);
   });
+
+  it('decodifica GOOGLE_SERVICE_ACCOUNT_KEY de base64 quando presente', () => {
+    const jsonKey = JSON.stringify({ client_email: 'bot@example.iam.gserviceaccount.com', private_key: 'fake-key' });
+    const encoded = Buffer.from(jsonKey, 'utf-8').toString('base64');
+    const config = loadConfig({ ...claudeEnv, GOOGLE_SERVICE_ACCOUNT_KEY: encoded });
+    expect(config.googleServiceAccountKey).toBe(jsonKey);
+  });
+
+  it('deixa googleServiceAccountKey indefinido quando GOOGLE_SERVICE_ACCOUNT_KEY não está definido', () => {
+    const config = loadConfig(claudeEnv);
+    expect(config.googleServiceAccountKey).toBeUndefined();
+  });
 });

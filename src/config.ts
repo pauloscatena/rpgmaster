@@ -5,6 +5,7 @@ interface BaseConfig {
   discordClientId: string;
   databaseUrl: string;
   anthropicApiKey: string;
+  googleServiceAccountKey?: string;
 }
 
 export type Config =
@@ -23,6 +24,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error('ANTHROPIC_API_KEY não definido (necessário mesmo com LLM_PROVIDER=ollama, usado na ingestão de documentos)');
   }
 
+  const googleServiceAccountKeyRaw = env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  const googleServiceAccountKey = googleServiceAccountKeyRaw
+    ? Buffer.from(googleServiceAccountKeyRaw, 'base64').toString('utf-8')
+    : undefined;
+
   const llmProviderRaw = env.LLM_PROVIDER ?? 'claude';
   if (llmProviderRaw !== 'claude' && llmProviderRaw !== 'ollama') {
     throw new Error(`LLM_PROVIDER inválido: "${llmProviderRaw}" (use "claude" ou "ollama")`);
@@ -33,8 +39,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     const ollamaModel = env.OLLAMA_MODEL;
     if (!ollamaBaseUrl) throw new Error('OLLAMA_BASE_URL não definido (necessário quando LLM_PROVIDER=ollama)');
     if (!ollamaModel) throw new Error('OLLAMA_MODEL não definido (necessário quando LLM_PROVIDER=ollama)');
-    return { discordToken, discordClientId, databaseUrl, anthropicApiKey, llmProvider: 'ollama', ollamaBaseUrl, ollamaModel };
+    return { discordToken, discordClientId, databaseUrl, anthropicApiKey, googleServiceAccountKey, llmProvider: 'ollama', ollamaBaseUrl, ollamaModel };
   }
 
-  return { discordToken, discordClientId, databaseUrl, anthropicApiKey, llmProvider: 'claude' };
+  return { discordToken, discordClientId, databaseUrl, anthropicApiKey, googleServiceAccountKey, llmProvider: 'claude' };
 }
