@@ -41,3 +41,17 @@ export function aplicarDano(
     resources: { ...defender.resources, [config.hpResourceKey]: updated },
   };
 }
+
+export type CombatOutcome = 'jogadores' | 'inimigos' | null;
+
+export function verificarFimDeCombate(
+  config: ValidatedRulesetConfig,
+  combatants: { isNpc: boolean; sheet: CharacterSheet }[]
+): CombatOutcome {
+  const isDown = (c: { sheet: CharacterSheet }) => (c.sheet.resources[config.hpResourceKey] ?? 0) <= 0;
+  const npcs = combatants.filter((c) => c.isNpc);
+  const players = combatants.filter((c) => !c.isNpc);
+  if (npcs.length > 0 && npcs.every(isDown)) return 'jogadores';
+  if (players.length > 0 && players.every(isDown)) return 'inimigos';
+  return null;
+}

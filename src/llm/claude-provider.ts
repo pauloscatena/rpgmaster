@@ -1,10 +1,11 @@
 import type Anthropic from '@anthropic-ai/sdk';
+import { CLAUDE_MODEL } from '../config';
 import type { GameMasterTurnResult, LlmProvider } from './provider';
 import type { ToolContext, ToolDefinition } from './tools';
 
 const MAX_TOOL_ITERATIONS = 6;
 
-export function createClaudeProvider(client: Anthropic, model = 'claude-sonnet-5'): LlmProvider {
+export function createClaudeProvider(client: Anthropic, model = CLAUDE_MODEL): LlmProvider {
   return {
     async runTurn(
       systemPrompt: string,

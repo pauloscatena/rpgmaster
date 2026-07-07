@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resolverAtaque, aplicarDano } from '../../src/rules-engine/combat';
+import { resolverAtaque, aplicarDano, verificarFimDeCombate } from '../../src/rules-engine/combat';
 import { createCharacterSheet } from '../../src/rules-engine/character';
 import { defaultRulesetConfig } from '../../src/rules-engine/ruleset-config';
+import type { CharacterSheet } from '../../src/rules-engine/types';
 
 describe('resolverAtaque', () => {
   const config = defaultRulesetConfig(); // attackAttribute: forca, defenseValue: 12, damageDie: 6
@@ -60,5 +61,44 @@ describe('aplicarDano', () => {
     const originalHp = defender.resources.hp;
     aplicarDano(config, defender, 5);
     expect(defender.resources.hp).toBe(originalHp);
+  });
+});
+
+describe('verificarFimDeCombate', () => {
+  const config = defaultRulesetConfig();
+
+  function comHp(name: string, hp: number): CharacterSheet {
+    const sheet = createCharacterSheet(config, name, { forca: 1, destreza: 1, intelecto: 1 });
+    return { ...sheet, resources: { ...sheet.resources, hp } };
+  }
+
+  it('devolve null quando combatentes dos dois lados seguem com hp acima de zero', () => {
+    const outcome = verificarFimDeCombate(config, [
+      { isNpc: false, sheet: comHp('Aria', 10) },
+      { isNpc: true, sheet: comHp('Goblin', 5) },
+    ]);
+    expect(outcome).toBeNull();
+  });
+
+  it('devolve "jogadores" quando todos os NPCs ficam com hp zero ou menos', () => {
+    const outcome = verificarFimDeCombate(config, [
+      { isNpc: false, sheet: comHp('Aria', 10) },
+      { isNpc: true, sheet: comHp('Goblin', 0) },
+      { isNpc: true, sheet: comHp('Orc', -3) },
+    ]);
+    expect(outcome).toBe('jogadores');
+  });
+
+  it('devolve "inimigos" quando todos os jogadores ficam com hp zero ou menos', () => {
+    const outcome = verificarFimDeCombate(config, [
+      { isNpc: false, sheet: comHp('Aria', 0) },
+      { isNpc: true, sheet: comHp('Goblin', 5) },
+    ]);
+    expect(outcome).toBe('inimigos');
+  });
+
+  it('devolve null quando um dos lados não tem nenhum combatente', () => {
+    const outcome = verificarFimDeCombate(config, [{ isNpc: false, sheet: comHp('Aria', 10) }]);
+    expect(outcome).toBeNull();
   });
 });

@@ -84,4 +84,37 @@ describe('combat tools', () => {
     const state = await getCombatState(pool, campaignId);
     expect(state?.currentIndex).toBe(1);
   });
+
+  it('aplicar_dano encerra o combate e limpa o estado quando o último inimigo morre', async () => {
+    const result = (await aplicarDanoTool.execute({ targetId: 'npc-1', amount: 999 }, makeCtx())) as {
+      combatEnded: boolean;
+      winner?: string;
+    };
+    expect(result.combatEnded).toBe(true);
+    expect(result.winner).toBe('jogadores');
+    const state = await getCombatState(pool, campaignId);
+    expect(state).toBeNull();
+  });
+
+  it('aplicar_dano encerra o combate quando o último jogador morre', async () => {
+    const result = (await aplicarDanoTool.execute({ targetId: aria.id, amount: 999 }, makeCtx())) as {
+      combatEnded: boolean;
+      winner?: string;
+    };
+    expect(result.combatEnded).toBe(true);
+    expect(result.winner).toBe('inimigos');
+    const state = await getCombatState(pool, campaignId);
+    expect(state).toBeNull();
+  });
+
+  it('aplicar_dano não encerra o combate quando ainda há combatentes vivos dos dois lados', async () => {
+    const result = (await aplicarDanoTool.execute({ targetId: 'npc-1', amount: 1 }, makeCtx())) as {
+      combatEnded: boolean;
+      winner?: string;
+    };
+    expect(result.combatEnded).toBe(false);
+    expect(result.winner).toBeUndefined();
+    const state = await getCombatState(pool, campaignId);
+    expect(state).not.toBeNull();
+  });
 });

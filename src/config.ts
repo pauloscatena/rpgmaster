@@ -1,3 +1,5 @@
+export const CLAUDE_MODEL = 'claude-sonnet-5';
+
 interface BaseConfig {
   discordToken: string;
   discordClientId: string;

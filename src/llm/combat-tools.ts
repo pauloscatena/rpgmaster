@@ -1,5 +1,5 @@
-import { aplicarDano, avancarTurno, resolverAtaque, turnoAtual } from '../rules-engine';
-import { getCombatState, saveCombatState } from '../db/combat-repo';
+import { aplicarDano, avancarTurno, resolverAtaque, turnoAtual, verificarFimDeCombate } from '../rules-engine';
+import { clearCombatState, getCombatState, saveCombatState } from '../db/combat-repo';
 import { updateCharacterResources } from '../db/characters-repo';
 import type { ToolContext, ToolDefinition } from './tools';
 
@@ -34,7 +34,7 @@ export const resolverAtaqueTool: ToolDefinition = {
 export const aplicarDanoTool: ToolDefinition = {
   name: 'aplicar_dano',
   description:
-    'Aplica uma quantidade de dano ao recurso de pontos de vida de um alvo do combate, identificado pelo targetId devolvido por resolver_ataque.',
+    'Aplica uma quantidade de dano ao recurso de pontos de vida de um alvo do combate, identificado pelo targetId devolvido por resolver_ataque. Se essa ação zerar os pontos de vida de todos os combatentes de um lado (jogadores ou inimigos), o combate é encerrado automaticamente e seu estado é limpo.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -54,11 +54,22 @@ export const aplicarDanoTool: ToolDefinition = {
     const updatedSheet = aplicarDano(ctx.config, target.sheet, amount);
     const updatedCombatants = [...state.combatants];
     updatedCombatants[index] = { ...target, sheet: updatedSheet };
-    await saveCombatState(combat.pool, { ...state, combatants: updatedCombatants });
     if (target.characterId) {
       await updateCharacterResources(combat.pool, target.characterId, updatedSheet.resources);
     }
-    return { targetId, targetName: target.name, resources: updatedSheet.resources };
+    const outcome = verificarFimDeCombate(ctx.config, updatedCombatants);
+    if (outcome) {
+      await clearCombatState(combat.pool, combat.campaignId);
+    } else {
+      await saveCombatState(combat.pool, { ...state, combatants: updatedCombatants });
+    }
+    return {
+      targetId,
+      targetName: target.name,
+      resources: updatedSheet.resources,
+      combatEnded: outcome !== null,
+      ...(outcome ? { winner: outcome } : {}),
+    };
   },
 };
 

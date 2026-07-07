@@ -13,10 +13,15 @@ Implementado em 5 planos sequenciais, cada um entregando algo testável sozinho:
 - [x] **Plano 1 — Motor de regras** ([plano](docs/superpowers/plans/2026-07-05-01-motor-de-regras.md)): dados, testes de atributo, resolução de ataque/dano, iniciativa e turnos, e o schema `RulesetConfig` (validado com Zod, com um branded type `ValidatedRulesetConfig` garantido em tempo de compilação). Módulo puro, sem I/O, em `src/rules-engine/`.
 - [x] **Plano 2 — Bot e persistência** ([plano](docs/superpowers/plans/2026-07-05-02-bot-e-persistencia.md)): Postgres (`campaigns`, `characters`, isolados por servidor/canal do Discord), `/criar-campanha` (ruleset padrão) e `/criar-personagem` (modal dinâmico gerado a partir dos atributos da campanha), roteador de interações, ponto de entrada e scripts de migração/registro de comandos.
 - [x] **Plano 3 — Laço narrativo** ([plano](docs/superpowers/plans/2026-07-05-03-laco-narrativo.md)): mestre movido a LLM fora de combate, com abstração de provedor (`LlmProvider` — `ClaudeProvider`/`OllamaProvider` intercambiáveis via `LLM_PROVIDER`), tools `fazer_teste`/`consultar_ficha`, resumo de sessão persistido, e tratamento de falha do LLM sem deixar o jogador sem resposta.
-- [x] **Plano 4 — Combate por turnos** ([plano](docs/superpowers/plans/2026-07-05-04-combate-por-turnos.md)): `/iniciar-combate` calcula iniciativa e persiste o estado de combate em Postgres; o bot recusa ações fora de turno antes de envolver o LLM, e as tools `resolver_ataque`/`aplicar_dano`/`avancar_turno` resolvem a mecânica sem o modelo nunca inventar números, com dano de jogador sempre refletido de volta na ficha.
+- [x] **Plano 4 — Combate por turnos** ([plano](docs/superpowers/plans/2026-07-05-04-combate-por-turnos.md)): `/iniciar-combate` calcula iniciativa e persiste o estado de combate em Postgres; o bot recusa ações fora de turno antes de envolver o LLM, e as tools `resolver_ataque`/`aplicar_dano`/`avancar_turno` resolvem a mecânica sem o modelo nunca inventar números, com dano de jogador sempre refletido de volta na ficha. `aplicar_dano` também detecta o fim do combate (todos os combatentes de um lado com HP zerado) e limpa o estado automaticamente.
 - [x] **Plano 5 — Ingestão de documento** ([plano](docs/superpowers/plans/2026-07-05-05-ingestao-de-documento.md)): `/criar-campanha` aceita um documento opcional; o Claude extrai lore e `ruleset_config` uma única vez, validando sempre com o mesmo schema do Plano 1 — se a extração ficar incompleta, a campanha entra em rascunho e `/responder-campanha` fecha as perguntas pendentes até liberar a campanha para jogar.
 
 Com o Plano 5, o MVP descrito no design está completo.
+
+### Pendências resolvidas após a revisão final
+
+- Fim de combate automático (`verificarFimDeCombate` em `src/rules-engine/combat.ts`), antes um gap Minor deliberado do Plano 4.
+- Id do modelo Claude centralizado em `CLAUDE_MODEL` (`src/config.ts`), removendo a duplicação de literal entre `extract.ts` e `claude-provider.ts`.
 
 ## Stack técnica
 

@@ -1,4 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk';
+import { CLAUDE_MODEL } from '../config';
 
 export interface ExtractionResult {
   lore: string;
@@ -6,7 +7,7 @@ export interface ExtractionResult {
   clarifyingQuestions: string[];
 }
 
-const MODEL = 'claude-sonnet-5';
+const MODEL = CLAUDE_MODEL;
 
 const EXTRACTION_SYSTEM_PROMPT = [
   'Você extrai informações de documentos de campanhas de RPG de mesa.',
