@@ -42,10 +42,16 @@ npm run typecheck # checagem de tipos
 
 Variáveis de ambiente: veja [.env.example](.env.example) (copie para `.env` e preencha).
 
+Sem um Postgres à mão, suba um local via Docker (porta `55432` no host para não colidir com outras instâncias):
+
+```bash
+docker run --name rpgmaster-db -e POSTGRES_PASSWORD=rpgmaster -e POSTGRES_DB=rpgmaster -p 55432:5432 -d postgres:16
+```
+
 Para rodar o bot contra um Postgres e uma aplicação Discord reais:
 
 ```bash
 npm run migrate            # aplica o schema no Postgres apontado por DATABASE_URL
-npm run register-commands  # registra /criar-campanha e /criar-personagem no Discord
+npm run register-commands  # registra os comandos no Discord (globalmente, ou só num servidor se DISCORD_GUILD_ID estiver definido)
 npm run dev                # inicia o bot
 ```
