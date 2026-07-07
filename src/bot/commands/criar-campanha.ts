@@ -4,12 +4,6 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { createCampaign, getCampaignByChannel } from '../../db/campaigns-repo';
 import { defaultRulesetConfig } from '../../rules-engine';
 import { fetchAttachmentText, UnsupportedAttachmentError } from '../attachments';
-import {
-  fetchGoogleDocText,
-  InvalidGoogleDocsLinkError,
-  GoogleDocsPermissionError,
-  GoogleDocsNotFoundError,
-} from '../google-docs';
 import { extractResolvedConfig } from '../../ingestion/extract';
 import { formatDraftSummary } from '../../ingestion/draft-flow';
 import { generateRandomLore } from '../../ingestion/random-lore';
@@ -21,20 +15,9 @@ export const data = new SlashCommandBuilder()
   .addStringOption((opt) => opt.setName('nome').setDescription('Nome da campanha').setRequired(true))
   .addAttachmentOption((opt) =>
     opt.setName('documento').setDescription('Documento opcional com lore e/ou regras da campanha').setRequired(false)
-  )
-  .addStringOption((opt) =>
-    opt
-      .setName('link')
-      .setDescription('Link de um Google Docs com a lore e/ou regras da campanha (alternativa ao anexo)')
-      .setRequired(false)
   );
 
-export async function execute(
-  interaction: ChatInputCommandInteraction,
-  pool: Pool,
-  claudeClient: Anthropic,
-  googleServiceAccountKey: string | undefined
-): Promise<void> {
+export async function execute(interaction: ChatInputCommandInteraction, pool: Pool, claudeClient: Anthropic): Promise<void> {
   const guildId = interaction.guildId;
   const channelId = interaction.channelId;
   if (!guildId) {
@@ -48,26 +31,8 @@ export async function execute(
   }
   const nome = interaction.options.getString('nome', true);
   const attachment = interaction.options.getAttachment('documento');
-  const link = interaction.options.getString('link');
 
-  if (attachment && link) {
-    await interaction.reply({
-      content: 'Escolha apenas uma origem para o documento da campanha: anexo ou link do Google Docs, não os dois.',
-      ephemeral: true,
-    });
-    return;
-  }
-
-  if (link && !googleServiceAccountKey) {
-    await interaction.reply({
-      content:
-        'A referência a Google Docs não está disponível no momento (conta de serviço não configurada). Envie o documento como anexo, ou tente novamente mais tarde.',
-      ephemeral: true,
-    });
-    return;
-  }
-
-  if (!attachment && !link) {
+  if (!attachment) {
     await interaction.deferReply();
     let lore: string;
     try {
@@ -86,9 +51,7 @@ export async function execute(
   await interaction.deferReply();
 
   try {
-    const documentText = link
-      ? await fetchGoogleDocText(link, googleServiceAccountKey as string) // link truthy implica googleServiceAccountKey definido (validado acima)
-      : await fetchAttachmentText(attachment!.url, attachment!.name);
+    const documentText = await fetchAttachmentText(attachment.url, attachment.name);
     const resolved = await extractResolvedConfig(claudeClient, documentText);
     const campaign = await createCampaign(pool, {
       guildId,
@@ -107,14 +70,6 @@ export async function execute(
     return;
   } catch (err) {
     if (err instanceof UnsupportedAttachmentError) {
-      await interaction.editReply(err.message);
-      return;
-    }
-    if (
-      err instanceof InvalidGoogleDocsLinkError ||
-      err instanceof GoogleDocsPermissionError ||
-      err instanceof GoogleDocsNotFoundError
-    ) {
       await interaction.editReply(err.message);
       return;
     }
