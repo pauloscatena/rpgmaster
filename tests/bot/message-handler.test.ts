@@ -80,9 +80,6 @@ describe('handleMessage', () => {
         sourceDocument: 'documento original da campanha',
         status: 'draft',
       });
-      // Personagem existe para provar que, mesmo tendo ficha, uma campanha em
-      // rascunho não cai no laço narrativo — ela processa a mensagem como
-      // resposta às perguntas pendentes, não como ação de jogo.
       await createCharacter(pool, {
         campaignId: draftCampaign.id,
         playerDiscordId: 'player-1',
@@ -91,11 +88,11 @@ describe('handleMessage', () => {
       return draftCampaign;
     }
 
-    it('trata a mensagem como resposta às perguntas pendentes em vez de chamar o LLM narrativo', async () => {
-      vi.spyOn(ingestion, 'extractCampaignDocument').mockResolvedValue({
+    it('trata a mensagem como resposta de revisão em vez de chamar o LLM narrativo', async () => {
+      vi.spyOn(ingestion, 'extractResolvedConfig').mockResolvedValue({
         lore: 'Uma torre antiga.',
-        rulesetConfig: { name: 'Sistema Caseiro' },
-        clarifyingQuestions: ['Qual é o dado de dano?'],
+        rulesetConfig: defaultRulesetConfig(),
+        clarifyingQuestions: ['Qual é o dado de dano? Sugiro d6.'],
       });
       const llmProvider = makeLlmProvider();
       const message = makeMessage('o dado de teste é d20');
@@ -108,19 +105,10 @@ describe('handleMessage', () => {
       expect(message._replies[0]).toMatch(/qual é o dado de dano/i);
     });
 
-    it('ativa a campanha quando a resposta completa a extração', async () => {
-      vi.spyOn(ingestion, 'extractCampaignDocument').mockResolvedValue({
+    it('nunca ativa a campanha sozinha, mesmo quando a extração fica completa', async () => {
+      vi.spyOn(ingestion, 'extractResolvedConfig').mockResolvedValue({
         lore: 'Uma torre antiga.',
-        rulesetConfig: {
-          name: 'Sistema Caseiro',
-          attributes: ['vigor'],
-          testDie: 20,
-          resources: [{ key: 'hp', label: 'Vida', startingValue: 8, linkedAttribute: 'vigor' }],
-          hpResourceKey: 'hp',
-          attackAttribute: 'vigor',
-          damageDie: 6,
-          defenseValue: 11,
-        },
+        rulesetConfig: defaultRulesetConfig(),
         clarifyingQuestions: [],
       });
       const llmProvider = makeLlmProvider();
@@ -131,12 +119,12 @@ describe('handleMessage', () => {
       await handleMessage(message, pool, llmProvider, claudeClient);
 
       const campaign = await getCampaignByChannel(pool, 'guild-1', 'channel-draft');
-      expect(campaign?.status).toBe('active');
-      expect(message._replies[0]).toMatch(/pronta para jogar/i);
+      expect(campaign?.status).toBe('draft');
+      expect(message._replies[0]).toMatch(/\/iniciar-campanha/);
     });
 
     it('responde com mensagem amigável quando o processamento falha', async () => {
-      vi.spyOn(ingestion, 'extractCampaignDocument').mockRejectedValue(new Error('boom'));
+      vi.spyOn(ingestion, 'extractResolvedConfig').mockRejectedValue(new Error('boom'));
       const llmProvider = makeLlmProvider();
       const message = makeMessage('o dado de teste é d20');
       message.channelId = 'channel-draft';
@@ -145,6 +133,26 @@ describe('handleMessage', () => {
       await handleMessage(message, pool, llmProvider, claudeClient);
 
       expect(message._replies[0]).toMatch(/não consegui processar/i);
+    });
+  });
+
+  describe('campanha pausada', () => {
+    it('ignora mensagens no canal, sem chamar o LLM nem responder', async () => {
+      await createCampaign(pool, {
+        guildId: 'guild-1',
+        channelId: 'channel-paused',
+        name: 'Campanha pausada',
+        rulesetConfig: defaultRulesetConfig(),
+        status: 'paused',
+      });
+      const llmProvider = makeLlmProvider();
+      const message = makeMessage('alguém aí?');
+      message.channelId = 'channel-paused';
+
+      await handleMessage(message, pool, llmProvider, claudeClient);
+
+      expect(llmProvider.runTurn).not.toHaveBeenCalled();
+      expect(message._replies).toHaveLength(0);
     });
   });
 

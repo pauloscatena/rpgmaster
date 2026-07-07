@@ -24,6 +24,8 @@ export async function handleMessage(
   const campaign = await getCampaignByChannel(pool, message.guildId, message.channelId);
   if (!campaign) return;
 
+  if (campaign.status === 'paused') return;
+
   if (campaign.status === 'draft') {
     try {
       const result = await processDraftAnswer(pool, claudeClient, campaign, message.content);
@@ -38,8 +40,6 @@ export async function handleMessage(
     }
     return;
   }
-
-  if (campaign.status !== 'active') return;
 
   const character = await getCharacterByPlayer(pool, campaign.id, message.author.id);
   if (!character) {
