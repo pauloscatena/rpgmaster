@@ -29,3 +29,73 @@ export function extractGoogleDocId(link: string): string {
   }
   return id;
 }
+
+interface GoogleDocsTextRun {
+  content: string;
+}
+
+interface GoogleDocsParagraphElement {
+  textRun?: GoogleDocsTextRun;
+}
+
+interface GoogleDocsParagraph {
+  elements: GoogleDocsParagraphElement[];
+}
+
+interface GoogleDocsTableCell {
+  content: GoogleDocsStructuralElement[];
+}
+
+interface GoogleDocsTableRow {
+  tableCells: GoogleDocsTableCell[];
+}
+
+interface GoogleDocsTable {
+  tableRows: GoogleDocsTableRow[];
+}
+
+interface GoogleDocsStructuralElement {
+  paragraph?: GoogleDocsParagraph;
+  table?: GoogleDocsTable;
+}
+
+export interface GoogleDocsTab {
+  tabProperties: { title: string };
+  documentTab?: { body: { content: GoogleDocsStructuralElement[] } };
+  childTabs?: GoogleDocsTab[];
+}
+
+export interface GoogleDocsDocument {
+  tabs?: GoogleDocsTab[];
+}
+
+function extractStructuralElementsText(elements: GoogleDocsStructuralElement[]): string {
+  const parts: string[] = [];
+  for (const element of elements) {
+    if (element.paragraph) {
+      const paragraphText = element.paragraph.elements.map((e) => e.textRun?.content ?? '').join('');
+      parts.push(paragraphText);
+    }
+    if (element.table) {
+      for (const row of element.table.tableRows) {
+        for (const cell of row.tableCells) {
+          parts.push(extractStructuralElementsText(cell.content));
+        }
+      }
+    }
+  }
+  return parts.join('');
+}
+
+export function extractTextFromTabs(tabs: GoogleDocsTab[]): string {
+  const sections: string[] = [];
+  for (const tab of tabs) {
+    const bodyContent = tab.documentTab?.body.content ?? [];
+    const tabText = extractStructuralElementsText(bodyContent);
+    sections.push(`=== Guia: ${tab.tabProperties.title} ===\n${tabText}`);
+    if (tab.childTabs && tab.childTabs.length > 0) {
+      sections.push(extractTextFromTabs(tab.childTabs));
+    }
+  }
+  return sections.join('\n\n');
+}
