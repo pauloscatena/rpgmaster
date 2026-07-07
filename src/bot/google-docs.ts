@@ -1,3 +1,5 @@
+import { JWT } from 'google-auth-library';
+
 export class InvalidGoogleDocsLinkError extends Error {
   constructor(link: string) {
     super(`Link inválido: "${link}" não parece ser um link válido do Google Docs.`);
@@ -98,4 +100,37 @@ export function extractTextFromTabs(tabs: GoogleDocsTab[]): string {
     }
   }
   return sections.join('\n\n');
+}
+
+export async function fetchGoogleDocText(link: string, serviceAccountKeyJson: string): Promise<string> {
+  const documentId = extractGoogleDocId(link);
+  const credentials = JSON.parse(serviceAccountKeyJson) as { client_email: string; private_key: string };
+
+  const jwtClient = new JWT({
+    email: credentials.client_email,
+    key: credentials.private_key,
+    scopes: ['https://www.googleapis.com/auth/documents.readonly'],
+  });
+
+  const { access_token: accessToken } = await jwtClient.authorize();
+  if (!accessToken) {
+    throw new Error('Falha ao autenticar com a conta de serviço do Google.');
+  }
+
+  const response = await fetch(`https://docs.googleapis.com/v1/documents/${documentId}?includeTabsContent=true`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (response.status === 403) {
+    throw new GoogleDocsPermissionError(credentials.client_email);
+  }
+  if (response.status === 404) {
+    throw new GoogleDocsNotFoundError();
+  }
+  if (!response.ok) {
+    throw new Error(`Falha ao buscar o documento do Google Docs (status ${response.status}).`);
+  }
+
+  const document = (await response.json()) as GoogleDocsDocument;
+  return extractTextFromTabs(document.tabs ?? []);
 }

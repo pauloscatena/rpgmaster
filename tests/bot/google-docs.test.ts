@@ -116,3 +116,82 @@ describe('extractTextFromTabs', () => {
     expect(extractTextFromTabs(tabs)).toBe('=== Guia: Vazia ===\n');
   });
 });
+
+import { fetchGoogleDocText, GoogleDocsPermissionError, GoogleDocsNotFoundError } from '../../src/bot/google-docs';
+import { vi, afterEach } from 'vitest';
+
+vi.mock('google-auth-library', () => ({
+  JWT: vi.fn().mockImplementation(() => ({
+    authorize: vi.fn().mockResolvedValue({ access_token: 'test-token' }),
+  })),
+}));
+
+const fakeServiceAccountKey = JSON.stringify({
+  client_email: 'rpgmaster-bot@projeto-teste.iam.gserviceaccount.com',
+  private_key: 'chave-falsa-de-teste',
+});
+
+describe('fetchGoogleDocText', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('busca e concatena o texto de todas as guias em caso de sucesso', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          tabs: [
+            {
+              tabProperties: { title: 'Guia 1' },
+              documentTab: {
+                body: { content: [{ paragraph: { elements: [{ textRun: { content: 'Texto da guia 1.' } }] } }] },
+              },
+            },
+          ],
+        }),
+      })
+    );
+    const text = await fetchGoogleDocText(
+      'https://docs.google.com/document/d/abc123/edit',
+      fakeServiceAccountKey
+    );
+    expect(text).toContain('=== Guia: Guia 1 ===');
+    expect(text).toContain('Texto da guia 1.');
+  });
+
+  it('lança GoogleDocsPermissionError com o e-mail da conta de serviço quando a API devolve 403', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 403 }));
+    await expect(
+      fetchGoogleDocText('https://docs.google.com/document/d/abc123/edit', fakeServiceAccountKey)
+    ).rejects.toThrow(GoogleDocsPermissionError);
+    await expect(
+      fetchGoogleDocText('https://docs.google.com/document/d/abc123/edit', fakeServiceAccountKey)
+    ).rejects.toThrow(/rpgmaster-bot@projeto-teste\.iam\.gserviceaccount\.com/);
+  });
+
+  it('lança GoogleDocsNotFoundError quando a API devolve 404', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+    await expect(
+      fetchGoogleDocText('https://docs.google.com/document/d/abc123/edit', fakeServiceAccountKey)
+    ).rejects.toThrow(GoogleDocsNotFoundError);
+  });
+
+  it('lança um erro genérico para outras falhas HTTP', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+    await expect(
+      fetchGoogleDocText('https://docs.google.com/document/d/abc123/edit', fakeServiceAccountKey)
+    ).rejects.toThrow(/500/);
+  });
+
+  it('propaga InvalidGoogleDocsLinkError para um link inválido, sem chamar fetch', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(fetchGoogleDocText('https://example.com/nao-e-doc', fakeServiceAccountKey)).rejects.toThrow(
+      /Link inválido/
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
