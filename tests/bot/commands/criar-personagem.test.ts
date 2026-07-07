@@ -4,7 +4,13 @@ import { createTestPool } from '../../../src/db/test-db';
 import { createCampaign, type Campaign } from '../../../src/db/campaigns-repo';
 import { getCharacterByPlayer } from '../../../src/db/characters-repo';
 import { defaultRulesetConfig } from '../../../src/rules-engine';
-import { buildCharacterModal, execute, handleModalSubmit, MAX_ATTRIBUTE_VALUE } from '../../../src/bot/commands/criar-personagem';
+import {
+  buildCharacterModal,
+  execute,
+  handleModalSubmit,
+  MAX_ATTRIBUTE_VALUE,
+  MAX_ATTRIBUTE_POINTS_TOTAL,
+} from '../../../src/bot/commands/criar-personagem';
 
 describe('buildCharacterModal', () => {
   const campaign: Campaign = {
@@ -39,6 +45,20 @@ describe('buildCharacterModal', () => {
     for (const label of labels) {
       expect(label).toContain(String(MAX_ATTRIBUTE_VALUE));
     }
+  });
+
+  it('inclui o orçamento total de pontos no título do modal quando o nome é curto o suficiente', () => {
+    const modal = buildCharacterModal(campaign, 'Aria');
+    const json = modal.toJSON();
+    expect(json.title).toContain(String(MAX_ATTRIBUTE_POINTS_TOTAL));
+  });
+
+  it('usa o título sem orçamento quando nome + orçamento passariam do limite de 45 caracteres do Discord', () => {
+    const nomeLongo = 'Sir Reginald: The Bold';
+    const modal = buildCharacterModal(campaign, nomeLongo);
+    const json = modal.toJSON();
+    expect(json.title).toBe(`Atributos de ${nomeLongo}`);
+    expect(json.title.length).toBeLessThanOrEqual(45);
   });
 });
 
@@ -214,6 +234,40 @@ describe('/criar-personagem handleModalSubmit', () => {
     await handleModalSubmit(interaction, pool);
     const character = await getCharacterByPlayer(pool, campaign.id, 'player-1');
     expect(character?.sheet.attributes.forca).toBe(MAX_ATTRIBUTE_VALUE);
+  });
+
+  it('recusa quando a soma dos atributos ultrapassa o orçamento total de pontos', async () => {
+    const values: Record<string, string> = { forca: '15', destreza: '10', intelecto: '10' };
+    const reply = vi.fn();
+    const interaction = {
+      customId: `criar-personagem:${campaign.id}:Aria`,
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      user: { id: 'player-1' },
+      fields: { getTextInputValue: (key: string) => values[key] },
+      reply,
+    } as any;
+    await handleModalSubmit(interaction, pool);
+    expect(reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringMatching(new RegExp(`35.*${MAX_ATTRIBUTE_POINTS_TOTAL}`)) })
+    );
+    const character = await getCharacterByPlayer(pool, campaign.id, 'player-1');
+    expect(character).toBeNull();
+  });
+
+  it('aceita quando a soma dos atributos é exatamente igual ao orçamento total de pontos', async () => {
+    const values: Record<string, string> = { forca: '10', destreza: '10', intelecto: '10' };
+    const interaction = {
+      customId: `criar-personagem:${campaign.id}:Aria`,
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      user: { id: 'player-1' },
+      fields: { getTextInputValue: (key: string) => values[key] },
+      reply: vi.fn(),
+    } as any;
+    await handleModalSubmit(interaction, pool);
+    const character = await getCharacterByPlayer(pool, campaign.id, 'player-1');
+    expect(character?.sheet.attributes).toEqual({ forca: 10, destreza: 10, intelecto: 10 });
   });
 
   it('aceita um atributo negativo válido (modificador negativo)', async () => {

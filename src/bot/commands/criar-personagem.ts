@@ -13,6 +13,9 @@ import { createCharacter, getCharacterByPlayer } from '../../db/characters-repo'
 import { createCharacterSheet } from '../../rules-engine';
 
 export const MAX_ATTRIBUTE_VALUE = 18;
+export const MAX_ATTRIBUTE_POINTS_TOTAL = 30;
+
+const DISCORD_MODAL_TITLE_MAX_LENGTH = 45;
 
 export const data = new SlashCommandBuilder()
   .setName('criar-personagem')
@@ -20,9 +23,10 @@ export const data = new SlashCommandBuilder()
   .addStringOption((opt) => opt.setName('nome').setDescription('Nome do personagem').setRequired(true));
 
 export function buildCharacterModal(campaign: Campaign, characterName: string): ModalBuilder {
-  const modal = new ModalBuilder()
-    .setCustomId(`criar-personagem:${campaign.id}:${characterName}`)
-    .setTitle(`Atributos de ${characterName}`);
+  const baseTitle = `Atributos de ${characterName}`;
+  const titleWithBudget = `${baseTitle} (orçamento: ${MAX_ATTRIBUTE_POINTS_TOTAL})`;
+  const title = titleWithBudget.length <= DISCORD_MODAL_TITLE_MAX_LENGTH ? titleWithBudget : baseTitle;
+  const modal = new ModalBuilder().setCustomId(`criar-personagem:${campaign.id}:${characterName}`).setTitle(title);
   const rows = campaign.rulesetConfig.attributes.map((attr) =>
     new ActionRowBuilder<TextInputBuilder>().addComponents(
       new TextInputBuilder()
@@ -94,6 +98,14 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, poo
       return;
     }
     attributeValues[attr] = value;
+  }
+  const total = Object.values(attributeValues).reduce((sum, value) => sum + value, 0);
+  if (total > MAX_ATTRIBUTE_POINTS_TOTAL) {
+    await interaction.reply({
+      content: `Total de pontos distribuídos (${total}) ultrapassa o orçamento máximo de ${MAX_ATTRIBUTE_POINTS_TOTAL}.`,
+      ephemeral: true,
+    });
+    return;
   }
   const sheet = createCharacterSheet(campaign.rulesetConfig, nome, attributeValues);
   await createCharacter(pool, { campaignId: campaign.id, playerDiscordId: interaction.user.id, sheet });
