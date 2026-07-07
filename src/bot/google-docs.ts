@@ -104,7 +104,15 @@ export function extractTextFromTabs(tabs: GoogleDocsTab[]): string {
 
 export async function fetchGoogleDocText(link: string, serviceAccountKeyJson: string): Promise<string> {
   const documentId = extractGoogleDocId(link);
-  const credentials = JSON.parse(serviceAccountKeyJson) as { client_email: string; private_key: string };
+
+  let credentials: { client_email: string; private_key: string };
+  try {
+    credentials = JSON.parse(serviceAccountKeyJson) as { client_email: string; private_key: string };
+  } catch (err) {
+    // Nunca propagar a mensagem original: SyntaxError do JSON.parse pode incluir um trecho da chave privada.
+    console.error('Falha ao decodificar a chave da conta de serviço do Google:', err);
+    throw new Error('Falha ao autenticar com a conta de serviço do Google.');
+  }
 
   const jwtClient = new JWT({
     email: credentials.client_email,
@@ -112,7 +120,13 @@ export async function fetchGoogleDocText(link: string, serviceAccountKeyJson: st
     scopes: ['https://www.googleapis.com/auth/documents.readonly'],
   });
 
-  const { access_token: accessToken } = await jwtClient.authorize();
+  let accessToken: string | null | undefined;
+  try {
+    ({ access_token: accessToken } = await jwtClient.authorize());
+  } catch (err) {
+    console.error('Falha ao autenticar com a conta de serviço do Google:', err);
+    throw new Error('Falha ao autenticar com a conta de serviço do Google.');
+  }
   if (!accessToken) {
     throw new Error('Falha ao autenticar com a conta de serviço do Google.');
   }

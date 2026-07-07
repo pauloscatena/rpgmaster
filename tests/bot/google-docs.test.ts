@@ -194,4 +194,24 @@ describe('fetchGoogleDocText', () => {
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('lança um erro genérico (sem vazar a chave) e loga o erro original quando a chave da conta de serviço é JSON malformado', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const chaveMalformada = 'isto não é um JSON válido, private_key: "segredo-que-nao-pode-vazar"';
+
+    await expect(fetchGoogleDocText('https://docs.google.com/document/d/abc123/edit', chaveMalformada)).rejects.toThrow(
+      'Falha ao autenticar com a conta de serviço do Google.'
+    );
+
+    const thrown = await fetchGoogleDocText('https://docs.google.com/document/d/abc123/edit', chaveMalformada).catch(
+      (err: Error) => err
+    );
+    expect((thrown as Error).message).not.toContain('segredo-que-nao-pode-vazar');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
 });
