@@ -2,7 +2,7 @@
 
 Um bot de Discord que atua como mestre de RPG por IA: narra a aventura, controla NPCs, gerencia fichas de personagem e conduz combate por turnos, para grupos de 3 a 5 jogadores em sessões de tempo real.
 
-O LLM (Claude ou um modelo local via Ollama) narra e decide quando algo exige resolução mecânica; toda a matemática do jogo (dados, dano, HP, turnos) é calculada em código, nunca inventada pelo modelo. Cada campanha pode usar um sistema de regras simplificado padrão ou um sistema próprio, extraído de um documento (lore + regras caseiras) enviado pelo criador da campanha — seja como anexo (`.txt`/`.pdf`) ou como um link de Google Docs (incluindo todas as guias e sub-guias do documento).
+O LLM (Claude ou um modelo local via Ollama) narra e decide quando algo exige resolução mecânica; toda a matemática do jogo (dados, dano, HP, turnos) é calculada em código, nunca inventada pelo modelo. Cada campanha pode usar um sistema de regras simplificado padrão ou um sistema próprio, extraído de um documento (lore + regras caseiras) enviado pelo criador da campanha como anexo (`.txt`/`.pdf`).
 
 Veja o design completo em [docs/superpowers/specs/2026-07-05-mestre-rpg-ia-design.md](docs/superpowers/specs/2026-07-05-mestre-rpg-ia-design.md).
 
@@ -25,9 +25,9 @@ Com o Plano 5, o MVP descrito no design está completo; o Plano 6 refina a exper
 - Id do modelo Claude centralizado em `CLAUDE_MODEL` (`src/config.ts`), removendo a duplicação de literal entre `extract.ts` e `claude-provider.ts`.
 - Anexos em PDF agora são extraídos de verdade (`pdf-parse`) em vez de lidos como texto cru — antes isso derrubava a criação da campanha com um erro de encoding no Postgres sempre que o PDF continha bytes 0x00.
 
-### Referência a Google Docs ([design](docs/superpowers/specs/2026-07-07-google-docs-campaign-reference-design.md), [plano](docs/superpowers/plans/2026-07-07-google-docs-campaign-reference.md))
+### Referência a Google Docs (desativada)
 
-`/criar-campanha` agora aceita uma opção `link` (alternativa ao anexo `documento`, mutuamente exclusiva): um link de Google Docs, lido via API oficial com autenticação de conta de serviço, incluindo todo o conteúdo de todas as guias e sub-guias do documento (`src/bot/google-docs.ts`). Reaproveita 100% do pipeline de ingestão já existente — a única mudança é de onde vem o texto bruto do documento. Requer configurar `GOOGLE_SERVICE_ACCOUNT_KEY` (opcional; sem ela, só o caminho `link` fica indisponível, com erro claro no momento do uso) — veja o setup de credenciais na spec linkada acima.
+`src/bot/google-docs.ts` (leitura de todas as guias/sub-guias de um Google Docs via API oficial + conta de serviço, ver [design](docs/superpowers/specs/2026-07-07-google-docs-campaign-reference-design.md)/[plano](docs/superpowers/plans/2026-07-07-google-docs-campaign-reference.md)) está implementado e testado, mas **não está conectado a nenhum comando**: a opção `link` foi removida de `/criar-campanha` porque o modelo de conta de serviço exige compartilhar manualmente cada Google Docs com ela, o que o operador do bot não quer fazer a cada campanha criada. O módulo, seus testes, a dependência `google-auth-library` e `Config.googleServiceAccountKey` continuam disponíveis para religar no futuro se o modelo de compartilhamento mudar.
 
 ### Valor máximo de atributos e orçamento total de pontos
 
