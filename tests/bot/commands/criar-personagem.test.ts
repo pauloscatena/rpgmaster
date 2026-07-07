@@ -4,7 +4,7 @@ import { createTestPool } from '../../../src/db/test-db';
 import { createCampaign, type Campaign } from '../../../src/db/campaigns-repo';
 import { getCharacterByPlayer } from '../../../src/db/characters-repo';
 import { defaultRulesetConfig } from '../../../src/rules-engine';
-import { buildCharacterModal, execute, handleModalSubmit } from '../../../src/bot/commands/criar-personagem';
+import { buildCharacterModal, execute, handleModalSubmit, MAX_ATTRIBUTE_VALUE } from '../../../src/bot/commands/criar-personagem';
 
 describe('buildCharacterModal', () => {
   const campaign: Campaign = {
@@ -30,6 +30,15 @@ describe('buildCharacterModal', () => {
     const json = modal.toJSON();
     const fieldIds = json.components.flatMap((row: any) => row.components.map((c: any) => c.custom_id));
     expect(fieldIds).toEqual(['forca', 'destreza', 'intelecto']);
+  });
+
+  it('inclui o valor máximo permitido no título de cada campo de atributo', () => {
+    const modal = buildCharacterModal(campaign, 'Aria');
+    const json = modal.toJSON();
+    const labels = json.components.flatMap((row: any) => row.components.map((c: any) => c.label));
+    for (const label of labels) {
+      expect(label).toContain(String(MAX_ATTRIBUTE_VALUE));
+    }
   });
 });
 
@@ -171,6 +180,40 @@ describe('/criar-personagem handleModalSubmit', () => {
     expect(reply).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringMatching(/forca/i) }));
     const character = await getCharacterByPlayer(pool, campaign.id, 'player-1');
     expect(character).toBeNull();
+  });
+
+  it('recusa quando um atributo enviado ultrapassa o valor máximo permitido', async () => {
+    const values: Record<string, string> = { forca: String(MAX_ATTRIBUTE_VALUE + 1), destreza: '2', intelecto: '1' };
+    const reply = vi.fn();
+    const interaction = {
+      customId: `criar-personagem:${campaign.id}:Aria`,
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      user: { id: 'player-1' },
+      fields: { getTextInputValue: (key: string) => values[key] },
+      reply,
+    } as any;
+    await handleModalSubmit(interaction, pool);
+    expect(reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringMatching(new RegExp(`forca.*${MAX_ATTRIBUTE_VALUE}`, 'i')) })
+    );
+    const character = await getCharacterByPlayer(pool, campaign.id, 'player-1');
+    expect(character).toBeNull();
+  });
+
+  it('aceita um atributo exatamente igual ao valor máximo permitido', async () => {
+    const values: Record<string, string> = { forca: String(MAX_ATTRIBUTE_VALUE), destreza: '2', intelecto: '1' };
+    const interaction = {
+      customId: `criar-personagem:${campaign.id}:Aria`,
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      user: { id: 'player-1' },
+      fields: { getTextInputValue: (key: string) => values[key] },
+      reply: vi.fn(),
+    } as any;
+    await handleModalSubmit(interaction, pool);
+    const character = await getCharacterByPlayer(pool, campaign.id, 'player-1');
+    expect(character?.sheet.attributes.forca).toBe(MAX_ATTRIBUTE_VALUE);
   });
 
   it('aceita um atributo negativo válido (modificador negativo)', async () => {

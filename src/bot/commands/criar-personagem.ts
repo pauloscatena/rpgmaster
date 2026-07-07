@@ -12,6 +12,8 @@ import { getCampaignByChannel, type Campaign } from '../../db/campaigns-repo';
 import { createCharacter, getCharacterByPlayer } from '../../db/characters-repo';
 import { createCharacterSheet } from '../../rules-engine';
 
+export const MAX_ATTRIBUTE_VALUE = 18;
+
 export const data = new SlashCommandBuilder()
   .setName('criar-personagem')
   .setDescription('Cria sua ficha de personagem nesta campanha')
@@ -23,7 +25,11 @@ export function buildCharacterModal(campaign: Campaign, characterName: string): 
     .setTitle(`Atributos de ${characterName}`);
   const rows = campaign.rulesetConfig.attributes.map((attr) =>
     new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder().setCustomId(attr).setLabel(attr).setStyle(TextInputStyle.Short).setRequired(true)
+      new TextInputBuilder()
+        .setCustomId(attr)
+        .setLabel(`${attr} (máximo ${MAX_ATTRIBUTE_VALUE})`)
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
     )
   );
   modal.addComponents(...rows);
@@ -78,6 +84,13 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, poo
     const value = Number.parseInt(raw, 10);
     if (Number.isNaN(value)) {
       await interaction.reply({ content: `Valor inválido para o atributo "${attr}": deve ser um número.`, ephemeral: true });
+      return;
+    }
+    if (value > MAX_ATTRIBUTE_VALUE) {
+      await interaction.reply({
+        content: `Valor inválido para o atributo "${attr}": o máximo permitido é ${MAX_ATTRIBUTE_VALUE}.`,
+        ephemeral: true,
+      });
       return;
     }
     attributeValues[attr] = value;
