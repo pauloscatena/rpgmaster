@@ -5,6 +5,10 @@ import * as criarCampanha from './commands/criar-campanha';
 import * as criarPersonagem from './commands/criar-personagem';
 import * as iniciarCombate from './commands/iniciar-combate';
 import * as responderCampanha from './commands/responder-campanha';
+import * as iniciarCampanha from './commands/iniciar-campanha';
+import * as pausarCampanha from './commands/pausar-campanha';
+import * as retomarCampanha from './commands/retomar-campanha';
+import * as minhaFicha from './commands/minha-ficha';
 
 export async function routeInteraction(interaction: Interaction, pool: Pool, claudeClient: Anthropic): Promise<void> {
   if (interaction.isChatInputCommand()) {
@@ -22,6 +26,22 @@ export async function routeInteraction(interaction: Interaction, pool: Pool, cla
     }
     if (interaction.commandName === 'responder-campanha') {
       await responderCampanha.execute(interaction, pool, claudeClient);
+      return;
+    }
+    if (interaction.commandName === 'iniciar-campanha') {
+      await iniciarCampanha.execute(interaction, pool);
+      return;
+    }
+    if (interaction.commandName === 'pausar-campanha') {
+      await pausarCampanha.execute(interaction, pool);
+      return;
+    }
+    if (interaction.commandName === 'retomar-campanha') {
+      await retomarCampanha.execute(interaction, pool);
+      return;
+    }
+    if (interaction.commandName === 'minha-ficha') {
+      await minhaFicha.execute(interaction, pool);
       return;
     }
     return;

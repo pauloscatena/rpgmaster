@@ -6,6 +6,10 @@ import * as criarCampanha from '../../src/bot/commands/criar-campanha';
 import * as criarPersonagem from '../../src/bot/commands/criar-personagem';
 import * as iniciarCombate from '../../src/bot/commands/iniciar-combate';
 import * as responderCampanha from '../../src/bot/commands/responder-campanha';
+import * as iniciarCampanha from '../../src/bot/commands/iniciar-campanha';
+import * as pausarCampanha from '../../src/bot/commands/pausar-campanha';
+import * as retomarCampanha from '../../src/bot/commands/retomar-campanha';
+import * as minhaFicha from '../../src/bot/commands/minha-ficha';
 
 describe('routeInteraction', () => {
   const pool = {} as Pool;
@@ -55,6 +59,34 @@ describe('routeInteraction', () => {
     const interaction = { isChatInputCommand: () => true, isModalSubmit: () => false, commandName: 'responder-campanha' } as any;
     await routeInteraction(interaction, pool, claudeClient);
     expect(spy).toHaveBeenCalledWith(interaction, pool, claudeClient);
+  });
+
+  it('despacha /iniciar-campanha para iniciarCampanha.execute', async () => {
+    const spy = vi.spyOn(iniciarCampanha, 'execute').mockResolvedValue(undefined);
+    const interaction = { isChatInputCommand: () => true, isModalSubmit: () => false, commandName: 'iniciar-campanha' } as any;
+    await routeInteraction(interaction, pool, claudeClient);
+    expect(spy).toHaveBeenCalledWith(interaction, pool);
+  });
+
+  it('despacha /pausar-campanha para pausarCampanha.execute', async () => {
+    const spy = vi.spyOn(pausarCampanha, 'execute').mockResolvedValue(undefined);
+    const interaction = { isChatInputCommand: () => true, isModalSubmit: () => false, commandName: 'pausar-campanha' } as any;
+    await routeInteraction(interaction, pool, claudeClient);
+    expect(spy).toHaveBeenCalledWith(interaction, pool);
+  });
+
+  it('despacha /retomar-campanha para retomarCampanha.execute', async () => {
+    const spy = vi.spyOn(retomarCampanha, 'execute').mockResolvedValue(undefined);
+    const interaction = { isChatInputCommand: () => true, isModalSubmit: () => false, commandName: 'retomar-campanha' } as any;
+    await routeInteraction(interaction, pool, claudeClient);
+    expect(spy).toHaveBeenCalledWith(interaction, pool);
+  });
+
+  it('despacha /minha-ficha para minhaFicha.execute', async () => {
+    const spy = vi.spyOn(minhaFicha, 'execute').mockResolvedValue(undefined);
+    const interaction = { isChatInputCommand: () => true, isModalSubmit: () => false, commandName: 'minha-ficha' } as any;
+    await routeInteraction(interaction, pool, claudeClient);
+    expect(spy).toHaveBeenCalledWith(interaction, pool);
   });
 
   it('ignora comandos desconhecidos sem lançar erro', async () => {
