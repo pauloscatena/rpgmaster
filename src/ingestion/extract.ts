@@ -49,12 +49,16 @@ const submeterExtracaoTool: Anthropic.Tool = {
 export async function extractCampaignDocument(client: Anthropic, documentText: string): Promise<ExtractionResult> {
   const response = await client.messages.create({
     model: MODEL,
-    max_tokens: 2048,
+    max_tokens: 8192,
     system: EXTRACTION_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: documentText }],
     tools: [submeterExtracaoTool],
     tool_choice: { type: 'tool', name: 'submeter_extracao' },
   });
+
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error('O documento é grande ou complexo demais para ser processado em uma única extração.');
+  }
 
   const block = response.content.find(
     (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use' && b.name === 'submeter_extracao'
@@ -62,7 +66,20 @@ export async function extractCampaignDocument(client: Anthropic, documentText: s
   if (!block) {
     throw new Error('O modelo não devolveu uma extração estruturada.');
   }
-  return block.input as ExtractionResult;
+
+  const input = block.input as Record<string, unknown>;
+  if (typeof input.lore !== 'string') {
+    throw new Error('Extração malformada: campo "lore" ausente ou inválido na resposta do modelo.');
+  }
+  if (!Array.isArray(input.clarifyingQuestions) || !input.clarifyingQuestions.every((q) => typeof q === 'string')) {
+    throw new Error('Extração malformada: campo "clarifyingQuestions" ausente ou inválido na resposta do modelo.');
+  }
+
+  return {
+    lore: input.lore,
+    rulesetConfig: input.rulesetConfig,
+    clarifyingQuestions: input.clarifyingQuestions,
+  };
 }
 
 export function buildExtractionInput(documentText: string, clarificationNotes: string): string {

@@ -39,6 +39,51 @@ describe('extractCampaignDocument', () => {
     const client = makeFakeClient({ content: [{ type: 'text', text: 'desculpe, não consigo.' }] });
     await expect(extractCampaignDocument(client, 'documento de exemplo')).rejects.toThrow(/extração estruturada/);
   });
+
+  it('lança erro quando a resposta é truncada por max_tokens', async () => {
+    const client = makeFakeClient({
+      stop_reason: 'max_tokens',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'tool-1',
+          name: 'submeter_extracao',
+          input: { lore: 'Uma lore que foi cortada no meio pel', rulesetConfig: { name: 'X' } },
+        },
+      ],
+    });
+    await expect(extractCampaignDocument(client, 'documento de exemplo')).rejects.toThrow(/grande|complex/i);
+  });
+
+  it('lança erro quando a extração não devolve clarifyingQuestions', async () => {
+    const client = makeFakeClient({
+      stop_reason: 'tool_use',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'tool-1',
+          name: 'submeter_extracao',
+          input: { lore: 'Uma torre antiga.', rulesetConfig: { name: 'X' } },
+        },
+      ],
+    });
+    await expect(extractCampaignDocument(client, 'documento de exemplo')).rejects.toThrow(/malformada/i);
+  });
+
+  it('lança erro quando a extração não devolve lore', async () => {
+    const client = makeFakeClient({
+      stop_reason: 'tool_use',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'tool-1',
+          name: 'submeter_extracao',
+          input: { rulesetConfig: { name: 'X' }, clarifyingQuestions: [] },
+        },
+      ],
+    });
+    await expect(extractCampaignDocument(client, 'documento de exemplo')).rejects.toThrow(/malformada/i);
+  });
 });
 
 describe('buildExtractionInput', () => {
