@@ -125,4 +125,19 @@ describe('/criar-campanha execute', () => {
     expect(interaction._lastReply).toMatch(/qual dado é usado nos testes/i);
     expect(interaction._lastReply).toMatch(/responder-campanha/);
   });
+
+  it('responde com mensagem específica e não cria campanha quando o formato do anexo não é suportado', async () => {
+    const extractSpy = vi.spyOn(ingestion, 'extractCampaignDocument');
+    const interaction = makeInteraction({
+      attachmentUrl: 'https://discord.example/regras.docx',
+      attachmentName: 'regras.docx',
+    });
+    await execute(interaction, pool, claudeClient);
+    expect(interaction._lastReply).toMatch(/formato.*não suportado/i);
+    expect(interaction._lastReply).toMatch(/\.txt/);
+    expect(interaction._lastReply).toMatch(/\.pdf/);
+    expect(extractSpy).not.toHaveBeenCalled();
+    const campaign = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
+    expect(campaign).toBeNull();
+  });
 });

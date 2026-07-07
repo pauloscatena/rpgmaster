@@ -3,7 +3,7 @@ import type { Pool } from 'pg';
 import type Anthropic from '@anthropic-ai/sdk';
 import { createCampaign, getCampaignByChannel } from '../../db/campaigns-repo';
 import { defaultRulesetConfig, validateRulesetConfig } from '../../rules-engine';
-import { fetchAttachmentText } from '../attachments';
+import { fetchAttachmentText, UnsupportedAttachmentError } from '../attachments';
 import * as ingestion from '../../ingestion/extract';
 import { formatValidationIssues } from '../../ingestion/validation-messages';
 
@@ -80,6 +80,10 @@ export async function execute(
     );
     return;
   } catch (err) {
+    if (err instanceof UnsupportedAttachmentError) {
+      await interaction.editReply(err.message);
+      return;
+    }
     console.error('Erro ao processar documento da campanha:', err);
     await interaction.editReply(
       'Não consegui processar o documento da campanha. Tente novamente com `/criar-campanha`.'
