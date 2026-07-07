@@ -64,4 +64,17 @@ describe('formatValidationIssues', () => {
     const issues = formatValidationIssues(validation);
     expect(issues.some((i) => i.includes('Escolha um destes: hp'))).toBe(true);
   });
+
+  it('sugere um exemplo e o atalho "usar padrão" para campos livres totalmente ausentes', () => {
+    const { name, attributes, resources, hpResourceKey, attackAttribute, defenseValue, ...semNada } =
+      defaultRulesetConfig() as any;
+    const validation = validateRulesetConfig(semNada);
+    const issues = formatValidationIssues(validation);
+    for (const campo of ['nome do sistema', 'atributos', 'recursos', 'recurso de HP', 'atributo de ataque', 'valor de defesa']) {
+      const issue = issues.find((i) => i.includes(`Campo "${campo}"`));
+      expect(issue).toBeDefined();
+      expect(issue).toMatch(/sugestão/i);
+      expect(issue).toMatch(/usar padrão/i);
+    }
+  });
 });

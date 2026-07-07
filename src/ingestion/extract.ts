@@ -1,5 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { CLAUDE_MODEL } from '../config';
+import { defaultRulesetConfig } from '../rules-engine';
 
 export interface ExtractionResult {
   lore: string;
@@ -9,13 +10,17 @@ export interface ExtractionResult {
 
 const MODEL = CLAUDE_MODEL;
 
+const DEFAULT_RULESET_JSON = JSON.stringify(defaultRulesetConfig());
+
 const EXTRACTION_SYSTEM_PROMPT = [
   'Você extrai informações de documentos de campanhas de RPG de mesa.',
   'Leia o documento e separe duas coisas: a lore/cenário (texto livre) e a configuração de regras (estruturada).',
   'A configuração de regras deve seguir este formato: name (string), attributes (lista de no máximo 5 nomes de atributos), testDie (4, 6, 8, 10, 12, 20 ou 100), resources (lista de { key, label, startingValue, linkedAttribute? }), hpResourceKey (deve corresponder a um resource.key), attackAttribute (deve estar em attributes), damageDie (mesmos valores de testDie), defenseValue (número).',
   'Preencha apenas os campos que puder inferir do documento com confiança — nunca invente um valor.',
   'Se um desses campos estruturais não puder ser inferido, apenas deixe-o de fora do rulesetConfig. O sistema já avisa automaticamente, campo a campo, o que ainda falta — não repita isso em clarifyingQuestions.',
-  'Use clarifyingQuestions somente para ambiguidades de interpretação do conteúdo do documento que não sejam simplesmente "faltou preencher um campo" — por exemplo, quando um valor do documento pode ser mapeado de mais de uma forma para o sistema de regras (ex: uma coluna de bônus que pode representar ataque ou dificuldade).',
+  'Use clarifyingQuestions somente para ambiguidades de interpretação do conteúdo do documento que não sejam simplesmente "faltou preencher um campo" — por exemplo, quando um valor do documento pode ser mapeado de mais de uma forma para o sistema de regras (ex: uma coluna de bônus que pode representar ataque ou dificuldade), ou quando um termo do documento (ex: "teste de sanidade") sugere um atributo/recurso que ainda não está definido.',
+  'Toda pergunta em clarifyingQuestions deve terminar propondo sua melhor sugestão (com base no que o documento já indica, ou uma convenção razoável de RPG) — nunca deixe uma pergunta totalmente em aberto sem alguma sugestão concreta para o criador aceitar ou corrigir.',
+  `Se o criador da campanha pedir para usar os valores padrão (frases como "usar padrão", "pode usar o padrão", "padrão está bom") para os campos que ainda faltarem, preencha-os com este sistema de regras padrão: ${DEFAULT_RULESET_JSON} — mantendo os campos que já foram extraídos do documento ou de respostas anteriores em vez de sobrescrevê-los.`,
 ].join('\n');
 
 const submeterExtracaoTool: Anthropic.Tool = {
