@@ -22,6 +22,7 @@ function makeInteraction(
   const attachmentUrl = overrides.attachmentUrl;
   const attachmentName = overrides.attachmentName ?? 'documento.txt';
   const replies: unknown[] = [];
+  const followUps: unknown[] = [];
   let editedReply: unknown;
   return {
     guildId,
@@ -37,10 +38,14 @@ function makeInteraction(
     editReply: async (payload: unknown) => {
       editedReply = payload;
     },
+    followUp: async (payload: unknown) => {
+      followUps.push(payload);
+    },
     get _lastReply() {
       return editedReply ?? replies[replies.length - 1];
     },
     _replies: replies,
+    _followUps: followUps,
   } as any;
 }
 
@@ -126,6 +131,37 @@ describe('/criar-campanha execute', () => {
     const campaign = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
     expect(campaign?.status).toBe('draft');
     expect(interaction._lastReply).toMatch(/qual dado é usado nos testes/i);
+  });
+
+  it('divide o resumo do rascunho em várias mensagens quando ultrapassa o limite do Discord', async () => {
+    const muitasPerguntas = Array.from(
+      { length: 40 },
+      (_, i) => `Pergunta número ${i + 1} sobre um detalhe específico das regras do documento? Sugiro a opção A.`
+    );
+    vi.spyOn(ingestion, 'extractResolvedConfig').mockResolvedValue({
+      lore: 'Uma torre antiga.',
+      rulesetConfig: {
+        name: 'Sistema Caseiro',
+        attributes: ['vigor'],
+        testDie: 20,
+        resources: [{ key: 'hp', label: 'Vida', startingValue: 8, linkedAttribute: 'vigor' }],
+        hpResourceKey: 'hp',
+        attackAttribute: 'vigor',
+        damageDie: 6,
+        defenseValue: 11,
+      } as any,
+      clarifyingQuestions: muitasPerguntas,
+    });
+    const interaction = makeInteraction({ attachmentUrl: 'https://discord.example/doc.txt' });
+    await execute(interaction, pool, claudeClient);
+    expect(interaction._lastReply.length).toBeLessThanOrEqual(2000);
+    expect(interaction._followUps.length).toBeGreaterThan(0);
+    for (const chunk of interaction._followUps as string[]) {
+      expect(chunk.length).toBeLessThanOrEqual(2000);
+    }
+    const fullText = [interaction._lastReply, ...interaction._followUps].join('');
+    expect(fullText).toContain('Pergunta número 1 ');
+    expect(fullText).toContain('Pergunta número 40 ');
   });
 
   it('responde com uma mensagem de erro amigável quando o processamento do documento falha', async () => {

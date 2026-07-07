@@ -10,6 +10,7 @@ import { resolverAtaqueTool, aplicarDanoTool, avancarTurnoTool } from '../llm/co
 import { buildSystemPrompt } from '../llm/context';
 import { appendToSessionSummary } from '../llm/session-summary';
 import { processDraftAnswer } from '../ingestion/draft-flow';
+import { splitDiscordMessage } from './discord-text';
 import { turnoAtual } from '../rules-engine';
 
 export async function handleMessage(
@@ -29,7 +30,11 @@ export async function handleMessage(
   if (campaign.status === 'draft') {
     try {
       const result = await processDraftAnswer(pool, claudeClient, campaign, message.content);
-      await message.reply(result.message);
+      const { first, rest } = splitDiscordMessage(result.message);
+      await message.reply(first);
+      for (const chunk of rest) {
+        await message.reply(chunk);
+      }
     } catch (err) {
       console.error('Erro ao processar resposta da campanha em rascunho:', err);
       try {

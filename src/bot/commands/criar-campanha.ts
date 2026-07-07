@@ -7,6 +7,7 @@ import { fetchAttachmentText, UnsupportedAttachmentError } from '../attachments'
 import { extractResolvedConfig } from '../../ingestion/extract';
 import { formatDraftSummary } from '../../ingestion/draft-flow';
 import { generateRandomLore } from '../../ingestion/random-lore';
+import { splitDiscordMessage } from '../discord-text';
 
 export const data = new SlashCommandBuilder()
   .setName('criar-campanha')
@@ -65,7 +66,11 @@ export async function execute(
       sourceDocument: documentText,
       status: 'draft',
     });
-    await interaction.editReply(formatDraftSummary(campaign, resolved.clarifyingQuestions));
+    const { first, rest } = splitDiscordMessage(formatDraftSummary(campaign, resolved.clarifyingQuestions));
+    await interaction.editReply(first);
+    for (const chunk of rest) {
+      await interaction.followUp(chunk);
+    }
     return;
   } catch (err) {
     if (err instanceof UnsupportedAttachmentError) {

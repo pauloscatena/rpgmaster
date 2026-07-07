@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import type Anthropic from '@anthropic-ai/sdk';
 import { getCampaignByChannel } from '../../db/campaigns-repo';
 import { processDraftAnswer } from '../../ingestion/draft-flow';
+import { splitDiscordMessage } from '../discord-text';
 
 export const data = new SlashCommandBuilder()
   .setName('responder-campanha')
@@ -36,7 +37,11 @@ export async function execute(
 
   try {
     const result = await processDraftAnswer(pool, claudeClient, campaign, resposta);
-    await interaction.editReply(result.message);
+    const { first, rest } = splitDiscordMessage(result.message);
+    await interaction.editReply(first);
+    for (const chunk of rest) {
+      await interaction.followUp(chunk);
+    }
   } catch (err) {
     console.error('Erro ao processar resposta da campanha:', err);
     await interaction.editReply(
