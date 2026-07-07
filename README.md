@@ -42,13 +42,25 @@ npm run typecheck # checagem de tipos
 
 Variáveis de ambiente: veja [.env.example](.env.example) (copie para `.env` e preencha).
 
-Sem um Postgres à mão, suba um local via Docker (porta `55432` no host para não colidir com outras instâncias):
+### Opção 1 — tudo via Docker Compose
+
+Sobe o Postgres e o bot juntos, aplica as migrations, registra os comandos no Discord e inicia o bot:
+
+```bash
+docker compose up --build
+```
+
+O serviço `bot` lê o `.env` (mesmo arquivo usado localmente), mas sempre aponta o Postgres para o serviço `db` da rede do Compose — não precisa editar `DATABASE_URL` para isso funcionar. O Postgres também fica exposto em `localhost:55432` no host, caso queira inspecioná-lo com outra ferramenta.
+
+### Opção 2 — Postgres em Docker, bot local
+
+Suba só o banco (porta `55432` no host para não colidir com outras instâncias):
 
 ```bash
 docker run --name rpgmaster-db -e POSTGRES_PASSWORD=rpgmaster -e POSTGRES_DB=rpgmaster -p 55432:5432 -d postgres:16
 ```
 
-Para rodar o bot contra um Postgres e uma aplicação Discord reais:
+E rode o bot direto com Node (útil para iterar sem rebuild de imagem):
 
 ```bash
 npm run migrate            # aplica o schema no Postgres apontado por DATABASE_URL
