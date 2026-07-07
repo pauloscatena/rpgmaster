@@ -29,9 +29,9 @@ Com o Plano 5, o MVP descrito no design está completo; o Plano 6 refina a exper
 
 `/criar-campanha` agora aceita uma opção `link` (alternativa ao anexo `documento`, mutuamente exclusiva): um link de Google Docs, lido via API oficial com autenticação de conta de serviço, incluindo todo o conteúdo de todas as guias e sub-guias do documento (`src/bot/google-docs.ts`). Reaproveita 100% do pipeline de ingestão já existente — a única mudança é de onde vem o texto bruto do documento. Requer configurar `GOOGLE_SERVICE_ACCOUNT_KEY` (opcional; sem ela, só o caminho `link` fica indisponível, com erro claro no momento do uso) — veja o setup de credenciais na spec linkada acima.
 
-### Valor máximo de atributos
+### Valor máximo de atributos e orçamento total de pontos
 
-O formulário de `/criar-personagem` mostra o valor máximo permitido (18) no título de cada campo de atributo e recusa envios acima desse teto com uma mensagem clara (`MAX_ATTRIBUTE_VALUE` em `src/bot/commands/criar-personagem.ts`).
+O formulário de `/criar-personagem` mostra o valor máximo permitido (18) no título de cada campo de atributo e recusa envios acima desse teto com uma mensagem clara (`MAX_ATTRIBUTE_VALUE` em `src/bot/commands/criar-personagem.ts`). O título do modal também mostra o orçamento total de pontos (30) quando cabe no limite de 45 caracteres do Discord (cai de volta pro título simples, sem truncar o nome do personagem, quando não cabe); modais do Discord não têm gancho de JS no cliente, então uma soma que atualiza em tempo real durante a digitação não é possível — a soma dos atributos só é validada depois do envio, recusando quando ultrapassa o orçamento (`MAX_ATTRIBUTE_POINTS_TOTAL`).
 
 ## Stack técnica
 
