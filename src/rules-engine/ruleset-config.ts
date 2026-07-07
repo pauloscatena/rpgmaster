@@ -1,9 +1,14 @@
 import { z } from 'zod';
-import type { RulesetConfig, ValidatedRulesetConfig } from './types';
+import type { DieSize, RulesetConfig, ValidatedRulesetConfig } from './types';
 
-const DieSizeSchema = z.union([
-  z.literal(4), z.literal(6), z.literal(8), z.literal(10), z.literal(12), z.literal(20), z.literal(100),
-]);
+export const DIE_SIZES: readonly DieSize[] = [4, 6, 8, 10, 12, 20, 100];
+
+const DieSizeSchema = z.union(DIE_SIZES.map((size) => z.literal(size)) as [z.ZodLiteral<DieSize>, z.ZodLiteral<DieSize>, ...z.ZodLiteral<DieSize>[]]);
+
+function joinWithOu(items: string[]): string {
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} ou ${items[items.length - 1]}`;
+}
 
 const ResourceDefSchema = z.object({
   key: z.string().min(1),
@@ -27,14 +32,15 @@ export const RulesetConfigSchema = z
     if (!config.attributes.includes(config.attackAttribute)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `attackAttribute "${config.attackAttribute}" precisa estar em attributes`,
+        message: `"${config.attackAttribute}" não é um atributo válido. Escolha um destes: ${joinWithOu(config.attributes)}.`,
         path: ['attackAttribute'],
       });
     }
     if (!config.resources.some((r) => r.key === config.hpResourceKey)) {
+      const resourceKeys = joinWithOu(config.resources.map((r) => r.key));
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `hpResourceKey "${config.hpResourceKey}" precisa corresponder a um resource.key`,
+        message: `"${config.hpResourceKey}" não corresponde a nenhum recurso definido. Escolha um destes: ${resourceKeys}.`,
         path: ['hpResourceKey'],
       });
     }
@@ -42,7 +48,7 @@ export const RulesetConfigSchema = z
       if (r.linkedAttribute && !config.attributes.includes(r.linkedAttribute)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `resource "${r.key}" linkedAttribute "${r.linkedAttribute}" precisa estar em attributes`,
+          message: `recurso "${r.key}": "${r.linkedAttribute}" não é um atributo válido. Escolha um destes: ${joinWithOu(config.attributes)}.`,
           path: ['resources', i, 'linkedAttribute'],
         });
       }
