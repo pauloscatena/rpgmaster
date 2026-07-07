@@ -7,12 +7,19 @@ import { getCampaignByChannel } from '../../../src/db/campaigns-repo';
 import * as ingestion from '../../../src/ingestion/extract';
 
 function makeInteraction(
-  overrides: { guildId?: string | null; channelId?: string; nome?: string; attachmentUrl?: string } = {}
+  overrides: {
+    guildId?: string | null;
+    channelId?: string;
+    nome?: string;
+    attachmentUrl?: string;
+    attachmentName?: string;
+  } = {}
 ) {
   const guildId = 'guildId' in overrides ? overrides.guildId : 'guild-1';
   const channelId = overrides.channelId ?? 'channel-1';
   const nome = overrides.nome ?? 'A Torre Esquecida';
   const attachmentUrl = overrides.attachmentUrl;
+  const attachmentName = overrides.attachmentName ?? 'documento.txt';
   const replies: unknown[] = [];
   let editedReply: unknown;
   return {
@@ -20,7 +27,7 @@ function makeInteraction(
     channelId,
     options: {
       getString: () => nome,
-      getAttachment: () => (attachmentUrl ? { url: attachmentUrl } : null),
+      getAttachment: () => (attachmentUrl ? { url: attachmentUrl, name: attachmentName } : null),
     },
     reply: async (payload: unknown) => {
       replies.push(payload);

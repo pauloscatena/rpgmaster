@@ -43,7 +43,7 @@ export async function execute(
   await interaction.deferReply();
 
   try {
-    const documentText = await fetchAttachmentText(attachment.url);
+    const documentText = await fetchAttachmentText(attachment.url, attachment.name);
     const extraction = await ingestion.extractCampaignDocument(claudeClient, documentText);
 
     const validation = validateRulesetConfig(extraction.rulesetConfig);
