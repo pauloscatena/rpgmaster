@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import type { ValidatedRulesetConfig } from '../rules-engine';
 
-export type CampaignStatus = 'draft' | 'active';
+export type CampaignStatus = 'draft' | 'active' | 'paused';
 
 export interface Campaign {
   id: string;
@@ -91,14 +91,12 @@ export async function saveDraftProgress(
   return rowToCampaign(result.rows[0]);
 }
 
-export async function activateCampaign(
-  pool: Pool,
-  campaignId: string,
-  params: { lore: string; rulesetConfig: ValidatedRulesetConfig }
-): Promise<Campaign> {
-  const result = await pool.query(
-    `UPDATE campaigns SET lore = $2, ruleset_config = $3, status = 'active' WHERE id = $1 RETURNING *`,
-    [campaignId, params.lore, JSON.stringify(params.rulesetConfig)]
-  );
+export async function activateCampaign(pool: Pool, campaignId: string): Promise<Campaign> {
+  const result = await pool.query(`UPDATE campaigns SET status = 'active' WHERE id = $1 RETURNING *`, [campaignId]);
+  return rowToCampaign(result.rows[0]);
+}
+
+export async function pauseCampaign(pool: Pool, campaignId: string): Promise<Campaign> {
+  const result = await pool.query(`UPDATE campaigns SET status = 'paused' WHERE id = $1 RETURNING *`, [campaignId]);
   return rowToCampaign(result.rows[0]);
 }

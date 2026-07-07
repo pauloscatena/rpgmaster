@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Pool } from 'pg';
 import { createTestPool } from '../../src/db/test-db';
-import { createCampaign, getCampaignByChannel, updateSessionSummary, saveDraftProgress, activateCampaign } from '../../src/db/campaigns-repo';
+import { createCampaign, getCampaignByChannel, updateSessionSummary, saveDraftProgress, activateCampaign, pauseCampaign } from '../../src/db/campaigns-repo';
 import { defaultRulesetConfig } from '../../src/rules-engine';
 
 describe('campaigns-repo', () => {
@@ -102,11 +102,32 @@ describe('campaigns-repo', () => {
       rulesetConfig: defaultRulesetConfig(),
       status: 'draft',
     });
-    const activated = await activateCampaign(pool, campaign.id, {
-      lore: 'Lore final',
+    const activated = await activateCampaign(pool, campaign.id);
+    expect(activated.status).toBe('active');
+    expect(activated.lore).toBe(campaign.lore);
+    expect(activated.rulesetConfig).toEqual(campaign.rulesetConfig);
+  });
+
+  it('pausa uma campanha ativa', async () => {
+    const campaign = await createCampaign(pool, {
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      name: 'Teste',
       rulesetConfig: defaultRulesetConfig(),
     });
-    expect(activated.status).toBe('active');
-    expect(activated.lore).toBe('Lore final');
+    const paused = await pauseCampaign(pool, campaign.id);
+    expect(paused.status).toBe('paused');
+  });
+
+  it('retoma uma campanha pausada chamando activateCampaign de novo', async () => {
+    const campaign = await createCampaign(pool, {
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      name: 'Teste',
+      rulesetConfig: defaultRulesetConfig(),
+    });
+    await pauseCampaign(pool, campaign.id);
+    const resumed = await activateCampaign(pool, campaign.id);
+    expect(resumed.status).toBe('active');
   });
 });
