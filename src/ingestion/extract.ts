@@ -13,7 +13,9 @@ const EXTRACTION_SYSTEM_PROMPT = [
   'Você extrai informações de documentos de campanhas de RPG de mesa.',
   'Leia o documento e separe duas coisas: a lore/cenário (texto livre) e a configuração de regras (estruturada).',
   'A configuração de regras deve seguir este formato: name (string), attributes (lista de no máximo 5 nomes de atributos), testDie (4, 6, 8, 10, 12, 20 ou 100), resources (lista de { key, label, startingValue, linkedAttribute? }), hpResourceKey (deve corresponder a um resource.key), attackAttribute (deve estar em attributes), damageDie (mesmos valores de testDie), defenseValue (número).',
-  'Preencha apenas os campos que puder inferir do documento com confiança. Para cada informação de regra que não puder inferir com confiança, adicione uma pergunta objetiva em clarifyingQuestions — nunca invente um valor.',
+  'Preencha apenas os campos que puder inferir do documento com confiança — nunca invente um valor.',
+  'Se um desses campos estruturais não puder ser inferido, apenas deixe-o de fora do rulesetConfig. O sistema já avisa automaticamente, campo a campo, o que ainda falta — não repita isso em clarifyingQuestions.',
+  'Use clarifyingQuestions somente para ambiguidades de interpretação do conteúdo do documento que não sejam simplesmente "faltou preencher um campo" — por exemplo, quando um valor do documento pode ser mapeado de mais de uma forma para o sistema de regras (ex: uma coluna de bônus que pode representar ataque ou dificuldade).',
 ].join('\n');
 
 const submeterExtracaoTool: Anthropic.Tool = {

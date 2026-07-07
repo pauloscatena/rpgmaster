@@ -123,7 +123,7 @@ describe('/criar-campanha execute', () => {
     const campaign = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
     expect(campaign?.status).toBe('draft');
     expect(interaction._lastReply).toMatch(/qual dado é usado nos testes/i);
-    expect(interaction._lastReply).toMatch(/responder-campanha/);
+    expect(interaction._lastReply).toMatch(/pode responder aqui mesmo no canal/i);
   });
 
   it('responde com mensagem específica e não cria campanha quando o formato do anexo não é suportado', async () => {

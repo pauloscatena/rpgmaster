@@ -1,5 +1,6 @@
 import type { Message } from 'discord.js';
 import type { Pool } from 'pg';
+import type Anthropic from '@anthropic-ai/sdk';
 import { getCampaignByChannel, updateSessionSummary } from '../db/campaigns-repo';
 import { getCharacterByPlayer } from '../db/characters-repo';
 import { getCombatState } from '../db/combat-repo';
@@ -8,14 +9,37 @@ import { fazerTesteTool, consultarFichaTool, type ToolDefinition } from '../llm/
 import { resolverAtaqueTool, aplicarDanoTool, avancarTurnoTool } from '../llm/combat-tools';
 import { buildSystemPrompt } from '../llm/context';
 import { appendToSessionSummary } from '../llm/session-summary';
+import { processDraftAnswer } from '../ingestion/draft-flow';
 import { turnoAtual } from '../rules-engine';
 
-export async function handleMessage(message: Message, pool: Pool, llmProvider: LlmProvider): Promise<void> {
+export async function handleMessage(
+  message: Message,
+  pool: Pool,
+  llmProvider: LlmProvider,
+  claudeClient: Anthropic
+): Promise<void> {
   if (message.author.bot) return;
   if (!message.guildId) return;
 
   const campaign = await getCampaignByChannel(pool, message.guildId, message.channelId);
-  if (!campaign || campaign.status !== 'active') return;
+  if (!campaign) return;
+
+  if (campaign.status === 'draft') {
+    try {
+      const result = await processDraftAnswer(pool, claudeClient, campaign, message.content);
+      await message.reply(result.message);
+    } catch (err) {
+      console.error('Erro ao processar resposta da campanha em rascunho:', err);
+      try {
+        await message.reply('Não consegui processar sua resposta agora. Tente de novo, ou use `/responder-campanha`.');
+      } catch (replyErr) {
+        console.error('Erro ao enviar mensagem de fallback:', replyErr);
+      }
+    }
+    return;
+  }
+
+  if (campaign.status !== 'active') return;
 
   const character = await getCharacterByPlayer(pool, campaign.id, message.author.id);
   if (!character) {

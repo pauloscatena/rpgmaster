@@ -76,7 +76,7 @@ export async function execute(
     await interaction.editReply(
       `Recebi o documento, mas preciso confirmar algumas coisas antes de liberar "${campaign.name}" para jogar:\n` +
         questions.map((q, i) => `${i + 1}. ${q}`).join('\n') +
-        '\n\nResponda com `/responder-campanha resposta:<sua resposta>`.'
+        '\n\nPode responder aqui mesmo no canal, com o que faltar.'
     );
     return;
   } catch (err) {

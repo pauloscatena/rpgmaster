@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Pool } from 'pg';
+import type Anthropic from '@anthropic-ai/sdk';
 import { createTestPool } from '../../src/db/test-db';
 import { createCampaign, getCampaignByChannel } from '../../src/db/campaigns-repo';
 import { createCharacter } from '../../src/db/characters-repo';
@@ -7,11 +8,13 @@ import { saveCombatState } from '../../src/db/combat-repo';
 import { defaultRulesetConfig, createCharacterSheet } from '../../src/rules-engine';
 import { handleMessage } from '../../src/bot/message-handler';
 import type { LlmProvider } from '../../src/llm/provider';
+import * as ingestion from '../../src/ingestion/extract';
 
 describe('handleMessage', () => {
   let pool: Pool;
   let campaignId: string;
   let ariaId: string;
+  const claudeClient = {} as Anthropic;
 
   function makeLlmProvider(overrides: Partial<LlmProvider> = {}): LlmProvider {
     return {
@@ -21,6 +24,7 @@ describe('handleMessage', () => {
   }
 
   beforeEach(async () => {
+    vi.restoreAllMocks();
     pool = createTestPool();
     await createCampaign(pool, {
       guildId: 'guild-1',
@@ -54,7 +58,7 @@ describe('handleMessage', () => {
 
   it('ignora mensagens de outros bots', async () => {
     const llmProvider = makeLlmProvider();
-    await handleMessage(makeMessage('oi', 'bot-1', true), pool, llmProvider);
+    await handleMessage(makeMessage('oi', 'bot-1', true), pool, llmProvider, claudeClient);
     expect(llmProvider.runTurn).not.toHaveBeenCalled();
   });
 
@@ -62,38 +66,92 @@ describe('handleMessage', () => {
     const llmProvider = makeLlmProvider();
     const message = makeMessage('oi');
     message.channelId = 'channel-sem-campanha';
-    await handleMessage(message, pool, llmProvider);
+    await handleMessage(message, pool, llmProvider, claudeClient);
     expect(llmProvider.runTurn).not.toHaveBeenCalled();
   });
 
-  it('ignora mensagens em campanha com status draft', async () => {
-    const llmProvider = makeLlmProvider();
-    const draftCampaign = await createCampaign(pool, {
-      guildId: 'guild-1',
-      channelId: 'channel-draft',
-      name: 'Campanha em rascunho',
-      rulesetConfig: defaultRulesetConfig(),
-      status: 'draft',
+  describe('campanha em rascunho', () => {
+    async function makeDraftCampaign() {
+      const draftCampaign = await createCampaign(pool, {
+        guildId: 'guild-1',
+        channelId: 'channel-draft',
+        name: 'Campanha em rascunho',
+        rulesetConfig: defaultRulesetConfig(),
+        sourceDocument: 'documento original da campanha',
+        status: 'draft',
+      });
+      // Personagem existe para provar que, mesmo tendo ficha, uma campanha em
+      // rascunho não cai no laço narrativo — ela processa a mensagem como
+      // resposta às perguntas pendentes, não como ação de jogo.
+      await createCharacter(pool, {
+        campaignId: draftCampaign.id,
+        playerDiscordId: 'player-1',
+        sheet: { name: 'Aria', attributes: { forca: 3, destreza: 2, intelecto: 1 }, resources: { hp: 13 }, inventory: [] },
+      });
+      return draftCampaign;
+    }
+
+    it('trata a mensagem como resposta às perguntas pendentes em vez de chamar o LLM narrativo', async () => {
+      vi.spyOn(ingestion, 'extractCampaignDocument').mockResolvedValue({
+        lore: 'Uma torre antiga.',
+        rulesetConfig: { name: 'Sistema Caseiro' },
+        clarifyingQuestions: ['Qual é o dado de dano?'],
+      });
+      const llmProvider = makeLlmProvider();
+      const message = makeMessage('o dado de teste é d20');
+      message.channelId = 'channel-draft';
+      await makeDraftCampaign();
+
+      await handleMessage(message, pool, llmProvider, claudeClient);
+
+      expect(llmProvider.runTurn).not.toHaveBeenCalled();
+      expect(message._replies[0]).toMatch(/qual é o dado de dano/i);
     });
-    // Give the author a character in this draft campaign so that, absent the
-    // `campaign.status !== 'active'` guard, the handler would proceed all the
-    // way to calling the LLM provider instead of stopping earlier for lack of
-    // a character sheet.
-    await createCharacter(pool, {
-      campaignId: draftCampaign.id,
-      playerDiscordId: 'player-1',
-      sheet: { name: 'Aria', attributes: { forca: 3, destreza: 2, intelecto: 1 }, resources: { hp: 13 }, inventory: [] },
+
+    it('ativa a campanha quando a resposta completa a extração', async () => {
+      vi.spyOn(ingestion, 'extractCampaignDocument').mockResolvedValue({
+        lore: 'Uma torre antiga.',
+        rulesetConfig: {
+          name: 'Sistema Caseiro',
+          attributes: ['vigor'],
+          testDie: 20,
+          resources: [{ key: 'hp', label: 'Vida', startingValue: 8, linkedAttribute: 'vigor' }],
+          hpResourceKey: 'hp',
+          attackAttribute: 'vigor',
+          damageDie: 6,
+          defenseValue: 11,
+        },
+        clarifyingQuestions: [],
+      });
+      const llmProvider = makeLlmProvider();
+      const message = makeMessage('o dado de dano é d6');
+      message.channelId = 'channel-draft';
+      await makeDraftCampaign();
+
+      await handleMessage(message, pool, llmProvider, claudeClient);
+
+      const campaign = await getCampaignByChannel(pool, 'guild-1', 'channel-draft');
+      expect(campaign?.status).toBe('active');
+      expect(message._replies[0]).toMatch(/pronta para jogar/i);
     });
-    const message = makeMessage('oi');
-    message.channelId = 'channel-draft';
-    await handleMessage(message, pool, llmProvider);
-    expect(llmProvider.runTurn).not.toHaveBeenCalled();
+
+    it('responde com mensagem amigável quando o processamento falha', async () => {
+      vi.spyOn(ingestion, 'extractCampaignDocument').mockRejectedValue(new Error('boom'));
+      const llmProvider = makeLlmProvider();
+      const message = makeMessage('o dado de teste é d20');
+      message.channelId = 'channel-draft';
+      await makeDraftCampaign();
+
+      await handleMessage(message, pool, llmProvider, claudeClient);
+
+      expect(message._replies[0]).toMatch(/não consegui processar/i);
+    });
   });
 
   it('pede para criar personagem quando o autor não tem ficha na campanha', async () => {
     const llmProvider = makeLlmProvider();
     const message = makeMessage('eu examino a sala', 'player-sem-ficha');
-    await handleMessage(message, pool, llmProvider);
+    await handleMessage(message, pool, llmProvider, claudeClient);
     expect(message._replies[0]).toMatch(/criar-personagem/);
     expect(llmProvider.runTurn).not.toHaveBeenCalled();
   });
@@ -101,14 +159,14 @@ describe('handleMessage', () => {
   it('chama o provedor de LLM e responde com a narração', async () => {
     const llmProvider = makeLlmProvider();
     const message = makeMessage('eu examino a sala');
-    await handleMessage(message, pool, llmProvider);
+    await handleMessage(message, pool, llmProvider, claudeClient);
     expect(message._replies[0]).toBe('Você vê uma sala empoeirada.');
   });
 
   it('passa as tools fazer_teste e consultar_ficha para o provedor', async () => {
     const llmProvider = makeLlmProvider();
     const message = makeMessage('eu examino a sala');
-    await handleMessage(message, pool, llmProvider);
+    await handleMessage(message, pool, llmProvider, claudeClient);
     const toolsArg = (llmProvider.runTurn as any).mock.calls[0][2] as { name: string }[];
     expect(toolsArg.map((t) => t.name)).toEqual(['fazer_teste', 'consultar_ficha']);
   });
@@ -116,7 +174,7 @@ describe('handleMessage', () => {
   it('atualiza o resumo da sessão após a resposta', async () => {
     const llmProvider = makeLlmProvider();
     const message = makeMessage('eu examino a sala');
-    await handleMessage(message, pool, llmProvider);
+    await handleMessage(message, pool, llmProvider, claudeClient);
     const campaign = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
     expect(campaign?.sessionSummary).toContain('sala empoeirada');
   });
@@ -127,7 +185,7 @@ describe('handleMessage', () => {
     });
     const message = makeMessage('eu examino a sala');
 
-    await expect(handleMessage(message, pool, llmProvider)).resolves.toBeUndefined();
+    await expect(handleMessage(message, pool, llmProvider, claudeClient)).resolves.toBeUndefined();
 
     expect(message._replies).toHaveLength(1);
     expect(message._replies[0]).not.toBe('Você vê uma sala empoeirada.');
@@ -141,7 +199,7 @@ describe('handleMessage', () => {
     const message = makeMessage('eu examino a sala');
     const campaignBefore = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
 
-    await handleMessage(message, pool, llmProvider);
+    await handleMessage(message, pool, llmProvider, claudeClient);
 
     const campaignAfter = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
     expect(campaignAfter?.sessionSummary).toBe(campaignBefore?.sessionSummary);
@@ -162,7 +220,7 @@ describe('handleMessage', () => {
     });
     const llmProvider = makeLlmProvider();
     const message = makeMessage('eu ataco o goblin');
-    await handleMessage(message, pool, llmProvider);
+    await handleMessage(message, pool, llmProvider, claudeClient);
     expect(llmProvider.runTurn).not.toHaveBeenCalled();
     expect(message._replies[0]).toMatch(/não é sua vez/i);
     expect(message._replies[0]).toMatch(/goblin/i);
@@ -185,7 +243,7 @@ describe('handleMessage', () => {
       runTurn: vi.fn().mockResolvedValue({ narration: 'Você ataca o goblin!', toolCalls: [] }),
     });
     const message = makeMessage('eu ataco o goblin');
-    await handleMessage(message, pool, llmProvider);
+    await handleMessage(message, pool, llmProvider, claudeClient);
     expect(message._replies[0]).toBe('Você ataca o goblin!');
     const toolsArg = (llmProvider.runTurn as any).mock.calls[0][2] as { name: string }[];
     expect(toolsArg.map((t) => t.name)).toEqual(

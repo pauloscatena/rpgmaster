@@ -21,7 +21,7 @@ async function main() {
   });
 
   client.on('messageCreate', (message) => {
-    handleMessage(message, pool, llmProvider).catch((err) => {
+    handleMessage(message, pool, llmProvider, claudeClient).catch((err) => {
       console.error('Erro ao processar mensagem:', err);
     });
   });
