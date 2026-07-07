@@ -8,8 +8,12 @@ import { data as responderCampanhaData } from '../src/bot/commands/responder-cam
 
 async function main() {
   const config = loadConfig();
+  const guildId = process.env.DISCORD_GUILD_ID;
   const rest = new REST({ version: '10' }).setToken(config.discordToken);
-  await rest.put(Routes.applicationCommands(config.discordClientId), {
+  const route = guildId
+    ? Routes.applicationGuildCommands(config.discordClientId, guildId)
+    : Routes.applicationCommands(config.discordClientId);
+  await rest.put(route, {
     body: [
       criarCampanhaData.toJSON(),
       criarPersonagemData.toJSON(),
@@ -17,7 +21,11 @@ async function main() {
       responderCampanhaData.toJSON(),
     ],
   });
-  console.log('Comandos registrados com sucesso.');
+  console.log(
+    guildId
+      ? `Comandos registrados com sucesso no servidor ${guildId} (propagação instantânea).`
+      : 'Comandos registrados globalmente com sucesso (pode levar até ~1h para propagar).'
+  );
 }
 
 main().catch((err) => {
