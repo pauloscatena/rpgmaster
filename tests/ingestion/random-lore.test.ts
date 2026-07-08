@@ -20,4 +20,20 @@ describe('generateRandomLore', () => {
     const client = makeFakeClient({ content: [] });
     await expect(generateRandomLore(client)).rejects.toThrow(/lore/i);
   });
+
+  it('varia o gênero do prompt conforme o rng informado', async () => {
+    const client = makeFakeClient({ content: [{ type: 'text', text: 'lore' }] });
+    await generateRandomLore(client, () => 0);
+    const firstPrompt = (client.messages.create as any).mock.calls[0][0].messages[0].content;
+
+    await generateRandomLore(client, () => 0.99);
+    const secondPrompt = (client.messages.create as any).mock.calls[1][0].messages[0].content;
+
+    expect(firstPrompt).not.toBe(secondPrompt);
+  });
+
+  it('usa Math.random como padrão quando nenhum rng é informado', async () => {
+    const client = makeFakeClient({ content: [{ type: 'text', text: 'lore' }] });
+    await expect(generateRandomLore(client)).resolves.toBe('lore');
+  });
 });

@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { LLM_REQUEST_TIMEOUT_MS } from '../config';
 import type { GameMasterTurnResult, LlmProvider } from './provider';
 import type { ToolContext, ToolDefinition } from './tools';
 
@@ -26,7 +27,10 @@ export function createOllamaProvider(baseUrl: string, model: string): LlmProvide
       const toolCalls: GameMasterTurnResult['toolCalls'] = [];
 
       for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
-        const response = await client.chat.completions.create({ model, messages, tools: openAiTools });
+        const response = await client.chat.completions.create(
+          { model, messages, tools: openAiTools },
+          { timeout: LLM_REQUEST_TIMEOUT_MS }
+        );
         const choice = response.choices[0];
         if (!choice) {
           throw new Error('Resposta do Ollama não contém nenhuma escolha (choices).');

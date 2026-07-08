@@ -33,6 +33,14 @@ Com o Plano 5, o MVP descrito no design está completo; o Plano 6 refina a exper
 
 O formulário de `/criar-personagem` mostra o valor máximo permitido (18) no título de cada campo de atributo e recusa envios acima desse teto com uma mensagem clara (`MAX_ATTRIBUTE_VALUE` em `src/bot/commands/criar-personagem.ts`). O título do modal também mostra o orçamento total de pontos (30) quando cabe no limite de 45 caracteres do Discord (cai de volta pro título simples, sem truncar o nome do personagem, quando não cabe); modais do Discord não têm gancho de JS no cliente, então uma soma que atualiza em tempo real durante a digitação não é possível — a soma dos atributos só é validada depois do envio, recusando quando ultrapassa o orçamento (`MAX_ATTRIBUTE_POINTS_TOTAL`).
 
+### Robustez e variedade na experiência de jogo
+
+Três melhorias pequenas, levantadas ao revisar uma conversa externa de pesquisa sobre modelos locais/arquitetura ([docs/notes/2026-07-07-gemini-chat-modelo-offline-e-arquitetura.md](docs/notes/2026-07-07-gemini-chat-modelo-offline-e-arquitetura.md)):
+
+- **Timeout nas chamadas ao LLM** (`LLM_REQUEST_TIMEOUT_MS` em `src/config.ts`, 30s): tanto `ClaudeProvider` quanto `OllamaProvider` agora limitam o tempo de cada requisição. Antes, se o modelo (sobretudo um Ollama local) travasse, a promise nunca resolvia e o jogador não recebia nem a mensagem de erro amigável — só ficava esperando.
+- **Indicador de "digitando" no Discord**: `handleMessage` (`src/bot/message-handler.ts`) sinaliza `sendTyping()` no canal enquanto aguarda a narração do LLM, com falha de permissão silenciada (best-effort, nunca bloqueia a resposta).
+- **Sementes de gênero na lore aleatória**: `generateRandomLore` (`src/ingestion/random-lore.ts`) agora sorteia um entre 5 estilos narrativos (alta fantasia, horror cósmico, cyberpunk, faroeste sombrio, piratas) a cada chamada, em vez de usar sempre o mesmo prompt genérico — evita que campanhas sem documento saiam sempre com a mesma cara.
+
 ## Stack técnica
 
 - Node.js 20+, TypeScript (`strict: true`, `noUncheckedIndexedAccess: true`)

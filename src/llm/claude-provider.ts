@@ -1,5 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk';
-import { CLAUDE_MODEL } from '../config';
+import { CLAUDE_MODEL, LLM_REQUEST_TIMEOUT_MS } from '../config';
 import type { GameMasterTurnResult, LlmProvider } from './provider';
 import type { ToolContext, ToolDefinition } from './tools';
 
@@ -23,13 +23,16 @@ export function createClaudeProvider(client: Anthropic, model = CLAUDE_MODEL): L
       const toolCalls: GameMasterTurnResult['toolCalls'] = [];
 
       for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
-        const response = await client.messages.create({
-          model,
-          max_tokens: 1024,
-          system: systemPrompt,
-          messages,
-          tools: anthropicTools,
-        });
+        const response = await client.messages.create(
+          {
+            model,
+            max_tokens: 1024,
+            system: systemPrompt,
+            messages,
+            tools: anthropicTools,
+          },
+          { timeout: LLM_REQUEST_TIMEOUT_MS }
+        );
 
         if (response.stop_reason !== 'tool_use') {
           const narration = response.content

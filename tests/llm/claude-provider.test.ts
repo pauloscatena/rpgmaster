@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type Anthropic from '@anthropic-ai/sdk';
 import { createClaudeProvider } from '../../src/llm/claude-provider';
+import { LLM_REQUEST_TIMEOUT_MS } from '../../src/config';
 import type { ToolContext, ToolDefinition } from '../../src/llm/tools';
 import { createCharacterSheet, defaultRulesetConfig } from '../../src/rules-engine';
 import type { StoredCharacter } from '../../src/db/characters-repo';
@@ -27,6 +28,16 @@ describe('createClaudeProvider().runTurn', () => {
     const result = await provider.runTurn('system', 'eu entro na sala', [], makeToolContext());
     expect(result.narration).toBe('Você entra na sala escura.');
     expect(result.toolCalls).toEqual([]);
+  });
+
+  it('passa um timeout de requisição para não travar indefinidamente', async () => {
+    const client = makeFakeClient([
+      { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Ok.' }] },
+    ]);
+    const provider = createClaudeProvider(client);
+    await provider.runTurn('system', 'oi', [], makeToolContext());
+    const [, requestOptions] = (client.messages.create as any).mock.calls[0];
+    expect(requestOptions).toEqual({ timeout: LLM_REQUEST_TIMEOUT_MS });
   });
 
   it('executa a ferramenta chamada e usa o resultado na resposta seguinte', async () => {

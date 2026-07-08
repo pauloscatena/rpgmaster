@@ -49,6 +49,7 @@ describe('handleMessage', () => {
       guildId: 'guild-1',
       channelId: 'channel-1',
       content,
+      channel: { sendTyping: vi.fn().mockResolvedValue(undefined) },
       reply: async (text: string) => {
         replies.push(text);
       },
@@ -167,6 +168,21 @@ describe('handleMessage', () => {
   it('chama o provedor de LLM e responde com a narração', async () => {
     const llmProvider = makeLlmProvider();
     const message = makeMessage('eu examino a sala');
+    await handleMessage(message, pool, llmProvider, claudeClient);
+    expect(message._replies[0]).toBe('Você vê uma sala empoeirada.');
+  });
+
+  it('sinaliza "digitando" no canal enquanto aguarda a resposta do LLM', async () => {
+    const llmProvider = makeLlmProvider();
+    const message = makeMessage('eu examino a sala');
+    await handleMessage(message, pool, llmProvider, claudeClient);
+    expect(message.channel.sendTyping).toHaveBeenCalled();
+  });
+
+  it('não deixa uma falha ao sinalizar "digitando" impedir a resposta', async () => {
+    const llmProvider = makeLlmProvider();
+    const message = makeMessage('eu examino a sala');
+    message.channel.sendTyping.mockRejectedValue(new Error('sem permissão'));
     await handleMessage(message, pool, llmProvider, claudeClient);
     expect(message._replies[0]).toBe('Você vê uma sala empoeirada.');
   });

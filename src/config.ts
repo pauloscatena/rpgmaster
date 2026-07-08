@@ -1,4 +1,5 @@
 export const CLAUDE_MODEL = 'claude-sonnet-5';
+export const LLM_REQUEST_TIMEOUT_MS = 30_000;
 
 interface BaseConfig {
   discordToken: string;

@@ -76,6 +76,9 @@ export async function handleMessage(
   });
 
   try {
+    if ('sendTyping' in message.channel) {
+      await message.channel.sendTyping().catch(() => {});
+    }
     const result = await llmProvider.runTurn(systemPrompt, message.content, tools, {
       config: campaign.rulesetConfig,
       actingCharacter: character,

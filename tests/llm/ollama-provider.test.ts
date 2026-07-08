@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type OpenAI from 'openai';
 import { createOllamaProvider } from '../../src/llm/ollama-provider';
+import { LLM_REQUEST_TIMEOUT_MS } from '../../src/config';
 import type { ToolContext, ToolDefinition } from '../../src/llm/tools';
 import { createCharacterSheet, defaultRulesetConfig } from '../../src/rules-engine';
 import type { StoredCharacter } from '../../src/db/characters-repo';
@@ -31,6 +32,19 @@ describe('createOllamaProvider().runTurn', () => {
     const result = await provider.runTurn('system', 'eu entro na sala', [], makeToolContext());
     expect(result.narration).toBe('Você entra na sala escura.');
     expect(result.toolCalls).toEqual([]);
+  });
+
+  it('passa um timeout de requisição para não travar indefinidamente', async () => {
+    const provider = createOllamaProvider('http://localhost:11434', 'qwen2.5');
+    const OpenAIModule = await import('openai');
+    const clientInstance = (OpenAIModule.default as any).mock.results.at(-1).value as OpenAI;
+    const create = clientInstance.chat.completions.create as any;
+    create.mockResolvedValueOnce({
+      choices: [{ message: { content: 'Ok.', tool_calls: undefined } }],
+    });
+    await provider.runTurn('system', 'oi', [], makeToolContext());
+    const [, requestOptions] = create.mock.calls[0];
+    expect(requestOptions).toEqual({ timeout: LLM_REQUEST_TIMEOUT_MS });
   });
 
   it('executa a ferramenta chamada via tool_calls e usa o resultado na resposta seguinte', async () => {
