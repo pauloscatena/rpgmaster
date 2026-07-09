@@ -1,5 +1,7 @@
 # Memória em 3 camadas (Hard/Working/Short-term) — Design
 
+> **Evolução (não implementar nesta feature):** [Estado canônico + retrieval (Opção C)](2026-07-09-estado-canonico-e-retrieval-design.md) · [Próximos passos de memória e prompt](2026-07-09-proximos-passos-memoria-e-prompt.md)
+
 ## Visão geral
 
 Hoje a memória narrativa de uma campanha (fora da `lore` fixa) é um único campo, `sessionSummary`, que acumula texto livre a cada troca e é truncado por tamanho de caractere quando fica grande demais (`appendToSessionSummary` em `src/llm/session-summary.ts`). Isso mistura duas coisas de natureza diferente — o estado de trama em evolução (o que está em jogo agora, para onde a história está indo) e o histórico recente da conversa — no mesmo blob, sem estrutura, e o corte por tamanho pode partir uma troca no meio.

@@ -63,7 +63,7 @@ describe('createClaudeProvider().runTurn', () => {
     ]);
   });
 
-  it('envia tool_result com is_error quando a ferramenta é desconhecida', async () => {
+  it('envia tool_result com is_error genérico quando a ferramenta é desconhecida', async () => {
     const client = makeFakeClient([
       { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'tool-1', name: 'ferramenta_inexistente', input: {} }] },
       { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Ok.' }] },
@@ -72,8 +72,34 @@ describe('createClaudeProvider().runTurn', () => {
     const result = await provider.runTurn('system', 'oi', [], makeToolContext());
     expect(result.narration).toBe('Ok.');
     const secondCallArgs = (client.messages.create as any).mock.calls[1][0];
-    const toolResultMessage = secondCallArgs.messages.at(-1);
-    expect(toolResultMessage.content[0].is_error).toBe(true);
+    const toolResult = secondCallArgs.messages.at(-1).content[0];
+    expect(toolResult.is_error).toBe(true);
+    const parsed = JSON.parse(toolResult.content);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.instruction).toMatch(/improvise/i);
+    expect(toolResult.content).not.toMatch(/ferramenta_inexistente/);
+  });
+
+  it('envia falha genérica (sem detalhe técnico) quando a ferramenta lança erro', async () => {
+    const failingTool: ToolDefinition = {
+      name: 'fazer_teste',
+      description: 'teste',
+      inputSchema: { type: 'object', properties: {} },
+      execute: vi.fn().mockRejectedValue(new Error('A ficha de "Aria" não tem o atributo "percepcao"')),
+    };
+    const client = makeFakeClient([
+      {
+        stop_reason: 'tool_use',
+        content: [{ type: 'tool_use', id: 'tool-1', name: 'fazer_teste', input: { attribute: 'percepcao', difficulty: 10 } }],
+      },
+      { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Você escuta passos ao longe.' }] },
+    ]);
+    const provider = createClaudeProvider(client);
+    const result = await provider.runTurn('system', 'eu escuto', [failingTool], makeToolContext());
+    expect(result.narration).toBe('Você escuta passos ao longe.');
+    const toolResult = (client.messages.create as any).mock.calls[1][0].messages.at(-1).content[0];
+    expect(toolResult.is_error).toBe(true);
+    expect(toolResult.content).not.toMatch(/percepcao|Aria|não tem o atributo/i);
   });
 
   it('lança erro ao exceder o número máximo de iterações', async () => {

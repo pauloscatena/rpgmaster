@@ -9,6 +9,20 @@ export interface ResourceDef {
   linkedAttribute?: string;
 }
 
+export interface PowerDef {
+  key: string;
+  name: string;
+  description: string;
+  startingLevel?: number;
+}
+
+export interface ClassDef {
+  key: string;
+  name: string;
+  description: string;
+  powerKeys: string[];
+}
+
 export interface RulesetConfig {
   name: string;
   attributes: string[];
@@ -18,6 +32,9 @@ export interface RulesetConfig {
   attackAttribute: string;
   damageDie: DieSize;
   defenseValue: number;
+  classes: ClassDef[];
+  powers: PowerDef[];
+  evolutionEnabled: boolean;
 }
 
 /**
@@ -29,9 +46,40 @@ export interface RulesetConfig {
  */
 export type ValidatedRulesetConfig = RulesetConfig & { readonly __validated: unique symbol };
 
+export interface InventoryItem {
+  id: string;
+  name: string;
+  qty: number;
+  description: string;
+  usable: boolean;
+  readable: boolean;
+}
+
+export interface CharacterPower {
+  powerKey: string;
+  level: number;
+}
+
+export interface Wallet {
+  major: number;
+  minor: number;
+}
+
 export interface CharacterSheet {
   name: string;
+  shortName: string;
   attributes: Record<string, number>;
   resources: Record<string, number>;
-  inventory: string[];
+  inventory: InventoryItem[];
+  bagCapacity: number;
+  classKey: string | null;
+  xp: number;
+  powers: CharacterPower[];
+  wallet: Wallet;
+  lastMasterGrantAtCampaignMessages: number | null;
+}
+
+export interface CurrencyNames {
+  major: string;
+  minor: string;
 }

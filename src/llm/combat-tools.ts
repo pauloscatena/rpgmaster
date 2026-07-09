@@ -1,6 +1,6 @@
 import { aplicarDano, avancarTurno, resolverAtaque, turnoAtual, verificarFimDeCombate } from '../rules-engine';
 import { clearCombatState, getCombatState, saveCombatState } from '../db/combat-repo';
-import { updateCharacterResources } from '../db/characters-repo';
+import { updateCharacterAttributes, updateCharacterResources } from '../db/characters-repo';
 import type { ToolContext, ToolDefinition } from './tools';
 
 function requireCombat(ctx: ToolContext) {
@@ -26,7 +26,16 @@ export const resolverAtaqueTool: ToolDefinition = {
     if (!state) throw new Error('Nenhum combate em andamento nesta campanha.');
     const target = state.combatants.find((c) => c.name.toLowerCase() === targetName.toLowerCase());
     if (!target) throw new Error(`Alvo "${targetName}" não encontrado no combate.`);
+    const attackAttr = ctx.config.attackAttribute;
+    const wasMissing = ctx.actingCharacter.sheet.attributes[attackAttr] === undefined;
     const result = resolverAtaque(ctx.config, ctx.actingCharacter.sheet, ctx.rng);
+    if (wasMissing && ctx.pool) {
+      await updateCharacterAttributes(
+        ctx.pool,
+        ctx.actingCharacter.id,
+        ctx.actingCharacter.sheet.attributes
+      );
+    }
     return { targetId: target.id, targetName: target.name, ...result };
   },
 };

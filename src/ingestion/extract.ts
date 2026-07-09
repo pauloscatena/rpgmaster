@@ -1,6 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { CLAUDE_MODEL } from '../config';
-import { defaultRulesetConfig, validateRulesetConfig, type ValidatedRulesetConfig } from '../rules-engine';
+import { coerceRulesetConfig, defaultRulesetConfig, type ValidatedRulesetConfig } from '../rules-engine';
 
 export interface ExtractionResult {
   lore: string;
@@ -92,10 +92,9 @@ export async function extractResolvedConfig(
   documentText: string
 ): Promise<{ lore: string; rulesetConfig: ValidatedRulesetConfig; clarifyingQuestions: string[] }> {
   const extraction = await extractCampaignDocument(client, documentText);
-  const validation = validateRulesetConfig(extraction.rulesetConfig);
   return {
     lore: extraction.lore,
-    rulesetConfig: validation.success ? validation.data : defaultRulesetConfig(),
+    rulesetConfig: coerceRulesetConfig(extraction.rulesetConfig),
     clarifyingQuestions: extraction.clarifyingQuestions,
   };
 }

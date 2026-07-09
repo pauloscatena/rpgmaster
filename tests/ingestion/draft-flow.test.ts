@@ -90,7 +90,11 @@ describe('formatDraftSummary', () => {
       status: 'draft' as const,
       rulesetConfig: defaultRulesetConfig(),
       lore: 'Uma lore.',
-      sessionSummary: '',
+      recentExchanges: [],
+      ritmoAtual: '',
+      proximoMarco: '',
+      fatosCruciais: [],
+      messagesSinceReflection: 0,
       sourceDocument: '',
       clarificationNotes: '',
     };

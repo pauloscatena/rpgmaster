@@ -2,6 +2,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.j
 import type { Pool } from 'pg';
 import { getCampaignByChannel } from '../../db/campaigns-repo';
 import { getCharacterByPlayer } from '../../db/characters-repo';
+import { formatWallet, usedSlots } from '../../rules-engine';
 
 export const data = new SlashCommandBuilder()
   .setName('minha-ficha')
@@ -31,18 +32,31 @@ export async function execute(interaction: ChatInputCommandInteraction, pool: Po
     return;
   }
   const publico = interaction.options.getBoolean('publico') ?? false;
-  const attrLines = Object.entries(character.sheet.attributes)
+  const sheet = character.sheet;
+  const attrLines = Object.entries(sheet.attributes)
     .map(([k, v]) => `- ${k}: ${v}`)
     .join('\n');
-  const resourceLines = Object.entries(character.sheet.resources)
+  const resourceLines = Object.entries(sheet.resources)
     .map(([k, v]) => `- ${k}: ${v}`)
     .join('\n');
-  const inventoryLine = character.sheet.inventory.length > 0 ? character.sheet.inventory.join(', ') : 'vazio';
-  const content = [
-    `**${character.sheet.name}**`,
+  const inventoryLine =
+    sheet.inventory.length > 0
+      ? sheet.inventory.map((i) => `${i.name}×${i.qty}`).join(', ')
+      : 'vazio';
+  const powersLine =
+    sheet.powers.length > 0
+      ? sheet.powers.map((p) => `${p.powerKey} (${p.level})`).join(', ')
+      : 'nenhum';
+  const lines = [
+    `**${sheet.name}**${sheet.shortName !== sheet.name ? ` (${sheet.shortName})` : ''}`,
+    `Classe: ${sheet.classKey ?? 'nenhuma'} | XP: ${sheet.xp}`,
     `Atributos:\n${attrLines}`,
     `Recursos:\n${resourceLines}`,
-    `Inventário: ${inventoryLine}`,
-  ].join('\n\n');
-  await interaction.reply({ content, ephemeral: !publico });
+    `Inventário (${usedSlots(sheet.inventory)}/${sheet.bagCapacity}): ${inventoryLine}`,
+    `Poderes: ${powersLine}`,
+  ];
+  if (campaign.economyEnabled) {
+    lines.push(`Dinheiro: ${formatWallet(sheet.wallet, campaign.currencyNames)}`);
+  }
+  await interaction.reply({ content: lines.join('\n\n'), ephemeral: !publico });
 }

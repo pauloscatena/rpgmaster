@@ -17,6 +17,20 @@ const ResourceDefSchema = z.object({
   linkedAttribute: z.string().optional(),
 });
 
+const PowerDefSchema = z.object({
+  key: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string(),
+  startingLevel: z.number().int().min(1).max(10).optional(),
+});
+
+const ClassDefSchema = z.object({
+  key: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string(),
+  powerKeys: z.array(z.string().min(1)),
+});
+
 export const RulesetConfigSchema = z
   .object({
     name: z.string().min(1),
@@ -27,6 +41,9 @@ export const RulesetConfigSchema = z
     attackAttribute: z.string().min(1),
     damageDie: DieSizeSchema,
     defenseValue: z.number().int(),
+    classes: z.array(ClassDefSchema).default([]),
+    powers: z.array(PowerDefSchema).default([]),
+    evolutionEnabled: z.boolean().default(true),
   })
   .superRefine((config, ctx) => {
     if (!config.attributes.includes(config.attackAttribute)) {
@@ -53,6 +70,18 @@ export const RulesetConfigSchema = z
         });
       }
     });
+    const powerKeys = new Set(config.powers.map((p) => p.key));
+    config.classes.forEach((cls, i) => {
+      cls.powerKeys.forEach((pk, j) => {
+        if (!powerKeys.has(pk)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `classe "${cls.key}": poder "${pk}" não existe no catálogo.`,
+            path: ['classes', i, 'powerKeys', j],
+          });
+        }
+      });
+    });
   });
 
 export function validateRulesetConfig(
@@ -60,11 +89,24 @@ export function validateRulesetConfig(
 ): { success: true; data: ValidatedRulesetConfig } | { success: false; error: z.ZodError } {
   const result = RulesetConfigSchema.safeParse(data);
   if (result.success) {
-    // This is the one legitimate place the `__validated` brand is created:
-    // the data just passed the full schema + cross-field validation above.
     return { success: true, data: result.data as ValidatedRulesetConfig };
   }
   return { success: false, error: result.error };
+}
+
+/** Aceita configs antigas sem classes/powers/evolutionEnabled. */
+export function coerceRulesetConfig(data: unknown): ValidatedRulesetConfig {
+  const raw = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+  const withDefaults = {
+    ...raw,
+    classes: Array.isArray(raw.classes) ? raw.classes : [],
+    powers: Array.isArray(raw.powers) ? raw.powers : [],
+    evolutionEnabled: typeof raw.evolutionEnabled === 'boolean' ? raw.evolutionEnabled : true,
+  };
+  const result = validateRulesetConfig(withDefaults);
+  if (result.success) return result.data;
+  // Fallback seguro: sistema padrão
+  return defaultRulesetConfig();
 }
 
 export function defaultRulesetConfig(): ValidatedRulesetConfig {
@@ -77,6 +119,35 @@ export function defaultRulesetConfig(): ValidatedRulesetConfig {
     attackAttribute: 'forca',
     damageDie: 6,
     defenseValue: 12,
+    evolutionEnabled: true,
+    powers: [
+      { key: 'golpe_poderoso', name: 'Golpe Poderoso', description: 'Um ataque devastador.' },
+      { key: 'segunda_respiracao', name: 'Segunda Respiração', description: 'Recupera fôlego no calor da batalha.' },
+      { key: 'projetil_arcano', name: 'Projétil Arcano', description: 'Dispara energia mágica.' },
+      { key: 'escudo_mana', name: 'Escudo de Mana', description: 'Barreira mágica protetora.' },
+      { key: 'passo_sombrio', name: 'Passo Sombrio', description: 'Desaparece nas sombras.' },
+      { key: 'olho_furtivo', name: 'Olho Furtivo', description: 'Percebe o que outros não veem.' },
+    ],
+    classes: [
+      {
+        key: 'guerreiro',
+        name: 'Guerreiro',
+        description: 'Combatente corpo a corpo.',
+        powerKeys: ['golpe_poderoso', 'segunda_respiracao'],
+      },
+      {
+        key: 'arcanista',
+        name: 'Arcanista',
+        description: 'Manipulador de magia.',
+        powerKeys: ['projetil_arcano', 'escudo_mana'],
+      },
+      {
+        key: 'sombra',
+        name: 'Sombra',
+        description: 'Especialista em furtividade.',
+        powerKeys: ['passo_sombrio', 'olho_furtivo'],
+      },
+    ],
   };
   const result = validateRulesetConfig(literal);
   if (!result.success) {

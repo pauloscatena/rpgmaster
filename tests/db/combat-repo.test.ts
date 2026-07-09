@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type { Pool } from 'pg';
 import { createTestPool } from '../../src/db/test-db';
 import { createCampaign } from '../../src/db/campaigns-repo';
-import { defaultRulesetConfig } from '../../src/rules-engine';
+import { createCharacterSheet, defaultRulesetConfig } from '../../src/rules-engine';
 import { saveCombatState, getCombatState, clearCombatState, type StoredCombatState } from '../../src/db/combat-repo';
 
 describe('combat-repo', () => {
@@ -21,6 +21,7 @@ describe('combat-repo', () => {
   });
 
   function makeState(): StoredCombatState {
+    const config = defaultRulesetConfig();
     return {
       campaignId,
       combatants: [
@@ -29,13 +30,13 @@ describe('combat-repo', () => {
           name: 'Aria',
           isNpc: false,
           characterId: 'char-1',
-          sheet: { name: 'Aria', attributes: { forca: 3, destreza: 2, intelecto: 1 }, resources: { hp: 13 }, inventory: [] },
+          sheet: createCharacterSheet(config, 'Aria', { forca: 3, destreza: 2, intelecto: 1 }),
         },
         {
           id: 'npc-1',
           name: 'Goblin',
           isNpc: true,
-          sheet: { name: 'Goblin', attributes: { forca: 1, destreza: 1, intelecto: 1 }, resources: { hp: 11 }, inventory: [] },
+          sheet: createCharacterSheet(config, 'Goblin', { forca: 1, destreza: 1, intelecto: 1 }),
         },
       ],
       order: [

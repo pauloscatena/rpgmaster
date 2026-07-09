@@ -16,8 +16,9 @@ Implementado em 5 planos sequenciais, cada um entregando algo testável sozinho:
 - [x] **Plano 4 — Combate por turnos** ([plano](docs/superpowers/plans/2026-07-05-04-combate-por-turnos.md)): `/iniciar-combate` calcula iniciativa e persiste o estado de combate em Postgres; o bot recusa ações fora de turno antes de envolver o LLM, e as tools `resolver_ataque`/`aplicar_dano`/`avancar_turno` resolvem a mecânica sem o modelo nunca inventar números, com dano de jogador sempre refletido de volta na ficha. `aplicar_dano` também detecta o fim do combate (todos os combatentes de um lado com HP zerado) e limpa o estado automaticamente.
 - [x] **Plano 5 — Ingestão de documento** ([plano](docs/superpowers/plans/2026-07-05-05-ingestao-de-documento.md)): `/criar-campanha` aceita um documento opcional; o Claude extrai lore e `ruleset_config` uma única vez, validando sempre com o mesmo schema do Plano 1. O fluxo de rascunho/revisão desse plano foi substituído pelo do Plano 6 abaixo.
 - [x] **Plano 6 — Revisão e trava de configuração** ([design](docs/superpowers/specs/2026-07-07-revisao-e-trava-de-campanha-design.md), [plano](docs/superpowers/plans/2026-07-07-06-revisao-e-trava-de-campanha.md)): a extração de regras agora sempre devolve uma `ruleset_config` completa (inferida do documento ou preenchida com o sistema padrão, com rede de segurança se a validação falhar) — chega de perguntas em loop. A campanha nasce em `draft` com um resumo completo pra revisar/editar por texto livre no canal, e só `/iniciar-campanha` trava a configuração e começa a sessão (trava permanente, sem reabrir na pausa). `/pausar-campanha` e `/retomar-campanha` dão um recesso na sessão sem soltar a configuração. `/criar-campanha` sem documento agora gera uma lore aleatória em vez de nascer em branco. `/minha-ficha` deixa o jogador conferir a própria ficha a qualquer momento (efêmero por padrão, `publico:true` pra mostrar a todos).
+- [x] **Plano 7 — Memória em 3 camadas** ([design](docs/superpowers/specs/2026-07-08-memoria-em-camadas-design.md), [plano](docs/superpowers/plans/2026-07-08-07-memoria-em-camadas.md)): memória narrativa dividida em lore fixa (Hard), estado de trama via reflexão periódica a cada 10 mensagens (Working: ritmo/marco/fatos), e buffer estruturado das últimas 5 trocas (Short-term), substituindo o antigo `session_summary` truncado por tamanho. Evolução futura: [estado canônico + retrieval](docs/superpowers/specs/2026-07-09-estado-canonico-e-retrieval-design.md) e [próximos passos](docs/superpowers/specs/2026-07-09-proximos-passos-memoria-e-prompt.md).
 
-Com o Plano 5, o MVP descrito no design está completo; o Plano 6 refina a experiência de configuração por cima dele.
+Com o Plano 5, o MVP descrito no design está completo; o Plano 6 refina a experiência de configuração; o Plano 7 melhora a coerência narrativa em sessões longas (especialmente com Ollama 7B).
 
 ### Pendências resolvidas após a revisão final
 
@@ -85,4 +86,14 @@ E rode o bot direto com Node (útil para iterar sem rebuild de imagem):
 npm run migrate            # aplica o schema no Postgres apontado por DATABASE_URL
 npm run register-commands  # registra os comandos no Discord (globalmente, ou só num servidor se DISCORD_GUILD_ID estiver definido)
 npm run dev                # inicia o bot
+```
+
+## Produção (VPS Hostinger)
+
+Bot Discord + Postgres via Docker Compose — sem site/HTTP público. Guia completo: [docs/deploy-hostinger.md](docs/deploy-hostinger.md).
+
+Resumo: instalar Docker na VPS → criar `/opt/rpgmaster/.env` **só no servidor** (o deploy não copia `.env`) → no Windows:
+
+```powershell
+.\deploy\deploy.ps1 -SshHost SEU_ALIAS_SSH -RegisterCommands
 ```

@@ -1,6 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { CLAUDE_MODEL, LLM_REQUEST_TIMEOUT_MS } from '../config';
 import type { GameMasterTurnResult, LlmProvider } from './provider';
+import { TOOL_FAILURE_FOR_MODEL } from './tool-errors';
 import type { ToolContext, ToolDefinition } from './tools';
 
 const MAX_TOOL_ITERATIONS = 6;
@@ -49,10 +50,11 @@ export function createClaudeProvider(client: Anthropic, model = CLAUDE_MODEL): L
           if (block.type !== 'tool_use') continue;
           const tool = tools.find((t) => t.name === block.name);
           if (!tool) {
+            console.error('Ferramenta desconhecida no Claude:', block.name);
             toolResultContent.push({
               type: 'tool_result',
               tool_use_id: block.id,
-              content: JSON.stringify({ error: `Ferramenta desconhecida: ${block.name}` }),
+              content: TOOL_FAILURE_FOR_MODEL,
               is_error: true,
             });
             continue;
@@ -62,10 +64,11 @@ export function createClaudeProvider(client: Anthropic, model = CLAUDE_MODEL): L
             toolCalls.push({ name: block.name, input: block.input, result });
             toolResultContent.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
           } catch (err) {
+            console.error('Erro ao executar ferramenta no Claude:', block.name, err);
             toolResultContent.push({
               type: 'tool_result',
               tool_use_id: block.id,
-              content: JSON.stringify({ error: (err as Error).message }),
+              content: TOOL_FAILURE_FOR_MODEL,
               is_error: true,
             });
           }

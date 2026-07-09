@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { fazerTesteTool, consultarFichaTool, type ToolContext } from '../../src/llm/tools';
 import { createCharacterSheet, defaultRulesetConfig } from '../../src/rules-engine';
-import type { StoredCharacter } from '../../src/db/characters-repo';
+import { createCharacter, getCharacterByPlayer, type StoredCharacter } from '../../src/db/characters-repo';
+import { createTestPool } from '../../src/db/test-db';
 
 describe('fazerTesteTool', () => {
   const config = defaultRulesetConfig();
@@ -41,6 +42,28 @@ describe('fazerTesteTool', () => {
       fazerTesteTool.execute({ attribute: 'forca', difficulty: 'dez' }, ctx)
     ).rejects.toThrow(/difficulty/);
   });
+
+  it('persiste atributo assumido quando pool está no contexto', async () => {
+    const pool = createTestPool();
+    await pool.query(
+      `INSERT INTO campaigns (id, guild_id, channel_id, name, status, ruleset_config, lore)
+       VALUES ('camp-1', 'guild-1', 'channel-1', 'Teste', 'active', '{}', '')`
+    );
+    const sparseSheet = createCharacterSheet(config, 'Aria', { forca: 3, destreza: 2, intelecto: 1 });
+    const stored = await createCharacter(pool, {
+      campaignId: 'camp-1',
+      playerDiscordId: 'player-1',
+      sheet: sparseSheet,
+    });
+    const toolCtx: ToolContext = { config, actingCharacter: stored, rng: () => 0.5, pool };
+    const result = (await fazerTesteTool.execute({ attribute: 'percepção', difficulty: 10 }, toolCtx)) as {
+      attributeValue: number;
+    };
+    expect(result.attributeValue).toBe(6);
+    expect(stored.sheet.attributes.percepção).toBe(6);
+    const found = await getCharacterByPlayer(pool, 'camp-1', 'player-1');
+    expect(found?.sheet.attributes.percepção).toBe(6);
+  });
 });
 
 describe('consultarFichaTool', () => {
@@ -53,8 +76,16 @@ describe('consultarFichaTool', () => {
     expect(consultarFichaTool.name).toBe('consultar_ficha');
   });
 
-  it('devolve a ficha do personagem que está agindo', async () => {
+  it('devolve a ficha do personagem que está agindo (sem carteira se economia off)', async () => {
     const result = await consultarFichaTool.execute({}, ctx);
-    expect(result).toEqual(sheet);
+    expect(result).toMatchObject({
+      name: sheet.name,
+      shortName: sheet.shortName,
+      attributes: sheet.attributes,
+      resources: sheet.resources,
+      xp: sheet.xp,
+      powers: sheet.powers,
+    });
+    expect(result).not.toHaveProperty('wallet');
   });
 });

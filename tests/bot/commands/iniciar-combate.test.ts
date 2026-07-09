@@ -16,7 +16,11 @@ describe('buildEnemyModal', () => {
     status: 'active',
     rulesetConfig: defaultRulesetConfig(),
     lore: '',
-    sessionSummary: '',
+    recentExchanges: [],
+    ritmoAtual: '',
+    proximoMarco: '',
+    fatosCruciais: [],
+    messagesSinceReflection: 0,
     sourceDocument: '',
     clarificationNotes: '',
   };

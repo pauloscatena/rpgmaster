@@ -1,5 +1,8 @@
 export const CLAUDE_MODEL = 'claude-sonnet-5';
-export const LLM_REQUEST_TIMEOUT_MS = 30_000;
+/** Timeout por chamada ao LLM. Em Ollama CPU-only, tool loops podem passar de 30s. */
+export const LLM_REQUEST_TIMEOUT_MS = Number(process.env.LLM_REQUEST_TIMEOUT_MS) || 90_000;
+/** Limite de tokens gerados no Ollama (acelera respostas longas demais). */
+export const OLLAMA_NUM_PREDICT = Number(process.env.OLLAMA_NUM_PREDICT) || 512;
 
 interface BaseConfig {
   discordToken: string;

@@ -1,3 +1,4 @@
+import { resolveAttributeValue } from './character';
 import { fazerTeste, type CheckResult } from './checks';
 import { rollDie } from './dice';
 import type { CharacterSheet, Rng, ValidatedRulesetConfig } from './types';
@@ -18,11 +19,7 @@ export function resolverAtaque(
     return { check, hit: false, damage: 0 };
   }
   const damageRoll = rollDie(config.damageDie, rng);
-  const attackAttributeValue = attacker.attributes[config.attackAttribute];
-  if (attackAttributeValue === undefined) {
-    throw new Error(`A ficha de "${attacker.name}" não tem o atributo "${config.attackAttribute}"`);
-  }
-  const damage = damageRoll + attackAttributeValue;
+  const damage = damageRoll + resolveAttributeValue(attacker, config.attackAttribute, rng);
   return { check, hit: true, damage };
 }
 

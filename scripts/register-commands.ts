@@ -9,6 +9,28 @@ import { data as iniciarCampanhaData } from '../src/bot/commands/iniciar-campanh
 import { data as pausarCampanhaData } from '../src/bot/commands/pausar-campanha';
 import { data as retomarCampanhaData } from '../src/bot/commands/retomar-campanha';
 import { data as minhaFichaData } from '../src/bot/commands/minha-ficha';
+import {
+  inventarioData,
+  usarData,
+  lerData,
+  darData,
+  jogarForaData,
+} from '../src/bot/commands/inventario';
+import { carteiraData, pagarData, darDinheiroData } from '../src/bot/commands/carteira';
+import {
+  poderesData,
+  definirClasseData,
+  aprenderPoderData,
+  evoluirPoderData,
+  evoluirAtributoData,
+} from '../src/bot/commands/poderes';
+import {
+  concederItemData,
+  concederXpData,
+  concederDinheiroData,
+  definirCapacidadeBolsaData,
+} from '../src/bot/commands/conceder';
+import { data as percepcaoData } from '../src/bot/commands/percepcao';
 
 async function main() {
   const config = loadConfig();
@@ -27,6 +49,24 @@ async function main() {
       pausarCampanhaData.toJSON(),
       retomarCampanhaData.toJSON(),
       minhaFichaData.toJSON(),
+      inventarioData.toJSON(),
+      usarData.toJSON(),
+      lerData.toJSON(),
+      darData.toJSON(),
+      jogarForaData.toJSON(),
+      carteiraData.toJSON(),
+      pagarData.toJSON(),
+      darDinheiroData.toJSON(),
+      poderesData.toJSON(),
+      definirClasseData.toJSON(),
+      aprenderPoderData.toJSON(),
+      evoluirPoderData.toJSON(),
+      evoluirAtributoData.toJSON(),
+      concederItemData.toJSON(),
+      concederXpData.toJSON(),
+      concederDinheiroData.toJSON(),
+      definirCapacidadeBolsaData.toJSON(),
+      percepcaoData.toJSON(),
     ],
   });
   console.log(

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Pool } from 'pg';
 import { createTestPool } from '../../src/db/test-db';
-import { createCampaign, getCampaignByChannel, updateSessionSummary, saveDraftProgress, activateCampaign, pauseCampaign } from '../../src/db/campaigns-repo';
+import { createCampaign, getCampaignByChannel, updateRecentExchanges, updateNarrativeState, saveDraftProgress, activateCampaign, pauseCampaign } from '../../src/db/campaigns-repo';
 import { defaultRulesetConfig } from '../../src/rules-engine';
 
 describe('campaigns-repo', () => {
@@ -51,16 +51,40 @@ describe('campaigns-repo', () => {
     expect(campaign.status).toBe('draft');
   });
 
-  it('atualiza o resumo da sessão de uma campanha', async () => {
+  it('atualiza as trocas recentes e incrementa o contador de reflexão', async () => {
     const campaign = await createCampaign(pool, {
       guildId: 'guild-1',
       channelId: 'channel-1',
       name: 'A Torre Esquecida',
       rulesetConfig: defaultRulesetConfig(),
     });
-    await updateSessionSummary(pool, campaign.id, 'Aria entrou na torre.');
+    const updated = await updateRecentExchanges(pool, campaign.id, [
+      { characterName: 'Aria', playerMessage: 'eu entro na torre', narration: 'Você entra na torre.' },
+    ]);
+    expect(updated.recentExchanges).toEqual([
+      { characterName: 'Aria', playerMessage: 'eu entro na torre', narration: 'Você entra na torre.' },
+    ]);
+    expect(updated.messagesSinceReflection).toBe(1);
+  });
+
+  it('atualiza o estado narrativo e zera o contador de reflexão', async () => {
+    const campaign = await createCampaign(pool, {
+      guildId: 'guild-1',
+      channelId: 'channel-1',
+      name: 'A Torre Esquecida',
+      rulesetConfig: defaultRulesetConfig(),
+    });
+    await updateRecentExchanges(pool, campaign.id, [{ characterName: 'Aria', playerMessage: 'oi', narration: 'olá' }]);
+    await updateNarrativeState(pool, campaign.id, {
+      ritmoAtual: 'ação',
+      proximoMarco: 'encontrar o goblin',
+      fatosCruciais: ['o rei está morto'],
+    });
     const updated = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
-    expect(updated?.sessionSummary).toBe('Aria entrou na torre.');
+    expect(updated?.ritmoAtual).toBe('ação');
+    expect(updated?.proximoMarco).toBe('encontrar o goblin');
+    expect(updated?.fatosCruciais).toEqual(['o rei está morto']);
+    expect(updated?.messagesSinceReflection).toBe(0);
   });
 
   it('salva o documento de origem ao criar uma campanha', async () => {

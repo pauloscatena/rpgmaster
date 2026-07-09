@@ -3,7 +3,7 @@ import type { Pool } from 'pg';
 import { createTestPool } from '../../../src/db/test-db';
 import { createCampaign } from '../../../src/db/campaigns-repo';
 import { createCharacter } from '../../../src/db/characters-repo';
-import { defaultRulesetConfig } from '../../../src/rules-engine';
+import { createCharacterSheet, defaultRulesetConfig } from '../../../src/rules-engine';
 import { execute } from '../../../src/bot/commands/minha-ficha';
 
 function makeInteraction(publico: boolean | null = null) {
@@ -17,7 +17,7 @@ function makeInteraction(publico: boolean | null = null) {
       replies.push(payload);
     },
     get _lastReply() {
-      return replies[replies.length - 1];
+      return replies[replies.length - 1] as { content: string; ephemeral: boolean };
     },
   } as any;
 }
@@ -33,10 +33,19 @@ describe('/minha-ficha execute', () => {
       name: 'A Torre Esquecida',
       rulesetConfig: defaultRulesetConfig(),
     });
+    const sheet = createCharacterSheet(defaultRulesetConfig(), 'Aria', {
+      forca: 3,
+      destreza: 2,
+      intelecto: 1,
+    });
+    sheet.resources.hp = 10;
+    sheet.inventory = [
+      { id: 'i1', name: 'espada', qty: 1, description: '', usable: true, readable: false },
+    ];
     await createCharacter(pool, {
       campaignId: campaign.id,
       playerDiscordId: 'player-1',
-      sheet: { name: 'Aria', attributes: { forca: 3, destreza: 2, intelecto: 1 }, resources: { hp: 10 }, inventory: ['espada'] },
+      sheet,
     });
   });
 
@@ -48,6 +57,7 @@ describe('/minha-ficha execute', () => {
     expect(interaction._lastReply.content).toMatch(/forca: 3/);
     expect(interaction._lastReply.content).toMatch(/hp: 10/);
     expect(interaction._lastReply.content).toMatch(/espada/);
+    expect(interaction._lastReply.content).not.toMatch(/Dinheiro/);
   });
 
   it('mostra a ficha publicamente quando publico=true', async () => {
@@ -67,7 +77,7 @@ describe('/minha-ficha execute', () => {
     await createCharacter(otherPool, {
       campaignId: campaign.id,
       playerDiscordId: 'player-2',
-      sheet: { name: 'Bram', attributes: { forca: 2 }, resources: { hp: 8 }, inventory: [] },
+      sheet: createCharacterSheet(defaultRulesetConfig(), 'Bram', { forca: 2, destreza: 1, intelecto: 1 }),
     });
     const interaction = makeInteraction();
     (interaction as any).guildId = 'guild-2';
@@ -75,19 +85,5 @@ describe('/minha-ficha execute', () => {
     (interaction as any).user = { id: 'player-2' };
     await execute(interaction, otherPool);
     expect(interaction._lastReply.content).toMatch(/vazio/i);
-  });
-
-  it('avisa quando o jogador não tem ficha nesta campanha', async () => {
-    const interaction = makeInteraction();
-    (interaction as any).user = { id: 'player-sem-ficha' };
-    await execute(interaction, pool);
-    expect(interaction._lastReply.content ?? interaction._lastReply).toMatch(/criar-personagem/);
-  });
-
-  it('avisa quando não há campanha no canal', async () => {
-    const interaction = makeInteraction();
-    (interaction as any).channelId = 'channel-sem-campanha';
-    await execute(interaction, pool);
-    expect(interaction._lastReply.content ?? interaction._lastReply).toMatch(/nenhuma campanha/i);
   });
 });

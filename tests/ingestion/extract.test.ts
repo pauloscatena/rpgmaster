@@ -123,7 +123,10 @@ describe('extractResolvedConfig', () => {
     });
     const result = await extractResolvedConfig(client, 'documento de exemplo');
     expect(result.lore).toBe('Uma torre antiga.');
-    expect(result.rulesetConfig).toEqual(validConfig);
+    expect(result.rulesetConfig.name).toBe('Sistema Caseiro');
+    expect(result.rulesetConfig.attributes).toEqual(['vigor']);
+    expect(result.rulesetConfig.evolutionEnabled).toBe(true);
+    expect(result.rulesetConfig.classes).toEqual([]);
     expect(result.clarifyingQuestions).toEqual([]);
   });
 

@@ -24,7 +24,19 @@ describe('fazerTeste', () => {
     expect(result.success).toBe(false);
   });
 
-  it('lança erro se o atributo não existir na ficha', () => {
-    expect(() => fazerTeste(config, character, 'carisma', 10, () => 0.5)).toThrow(/carisma/);
+  it('assume 1..10 e persiste na ficha quando o atributo não existe', () => {
+    const sheet = createCharacterSheet(config, 'Aria', { forca: 3, destreza: 2, intelecto: 1 });
+    // rng constante 0.5: assume = 6, depois d20 = 11
+    const result = fazerTeste(config, sheet, 'percepção', 10, () => 0.5);
+    expect(result.attributeValue).toBe(6);
+    expect(result.roll).toBe(11);
+    expect(result.total).toBe(17);
+    expect(sheet.attributes.percepção).toBe(6);
+    expect(result.success).toBe(true);
+  });
+
+  it('não lança erro quando o atributo está ausente', () => {
+    const sheet = createCharacterSheet(config, 'Aria', { forca: 3, destreza: 2, intelecto: 1 });
+    expect(() => fazerTeste(config, sheet, 'carisma', 10, () => 0.5)).not.toThrow();
   });
 });

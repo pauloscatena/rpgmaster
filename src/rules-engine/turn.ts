@@ -1,3 +1,4 @@
+import { resolveAttributeValue } from './character';
 import { rollDie } from './dice';
 import type { CharacterSheet, Rng, ValidatedRulesetConfig } from './types';
 
@@ -18,10 +19,7 @@ export function calcularIniciativa(
   rng: Rng = Math.random
 ): CombatState {
   const rolled: Combatant[] = participants.map((p) => {
-    const attributeValue = p.character.attributes[config.attackAttribute];
-    if (attributeValue === undefined) {
-      throw new Error(`A ficha de "${p.character.name}" não tem o atributo "${config.attackAttribute}"`);
-    }
+    const attributeValue = resolveAttributeValue(p.character, config.attackAttribute, rng);
     return {
       id: p.id,
       name: p.name,

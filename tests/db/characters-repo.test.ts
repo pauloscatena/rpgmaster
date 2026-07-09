@@ -1,14 +1,27 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Pool } from 'pg';
 import { createTestPool } from '../../src/db/test-db';
-import { createCharacter, getCharacterByPlayer, getCharactersByCampaign, updateCharacterResources } from '../../src/db/characters-repo';
+import {
+  createCharacter,
+  getCharacterByPlayer,
+  getCharactersByCampaign,
+  updateCharacterAttributes,
+  updateCharacterResources,
+} from '../../src/db/characters-repo';
 import type { CharacterSheet } from '../../src/rules-engine';
 
 const ariaSheet: CharacterSheet = {
   name: 'Aria',
+  shortName: 'Aria',
   attributes: { forca: 3, destreza: 2, intelecto: 1 },
   resources: { hp: 13 },
   inventory: [],
+  bagCapacity: 10,
+  classKey: null,
+  xp: 0,
+  powers: [],
+  wallet: { major: 0, minor: 0 },
+  lastMasterGrantAtCampaignMessages: null,
 };
 
 describe('characters-repo', () => {
@@ -61,5 +74,14 @@ describe('characters-repo', () => {
     const stored = await createCharacter(pool, { campaignId: 'camp-1', playerDiscordId: 'player-1', sheet: ariaSheet });
     const updated = await updateCharacterResources(pool, stored.id, { hp: 5 });
     expect(updated.sheet.resources).toEqual({ hp: 5 });
+  });
+
+  it('atualiza os atributos de um personagem', async () => {
+    const stored = await createCharacter(pool, { campaignId: 'camp-1', playerDiscordId: 'player-1', sheet: ariaSheet });
+    const attrs = { ...stored.sheet.attributes, percepção: 6 };
+    const updated = await updateCharacterAttributes(pool, stored.id, attrs);
+    expect(updated.sheet.attributes).toEqual(attrs);
+    const found = await getCharacterByPlayer(pool, 'camp-1', 'player-1');
+    expect(found?.sheet.attributes.percepção).toBe(6);
   });
 });

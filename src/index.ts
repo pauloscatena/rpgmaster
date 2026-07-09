@@ -15,7 +15,7 @@ async function main() {
   const llmProvider = createLlmProvider(config, claudeClient); // laço narrativo/combate, agnóstico de provedor
 
   client.on('interactionCreate', (interaction) => {
-    routeInteraction(interaction, pool, claudeClient).catch((err) => {
+    routeInteraction(interaction, pool, claudeClient, llmProvider).catch((err) => {
       console.error('Erro ao processar interação:', err);
     });
   });

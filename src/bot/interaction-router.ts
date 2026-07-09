@@ -1,6 +1,7 @@
 import type { Interaction } from 'discord.js';
 import type { Pool } from 'pg';
 import type Anthropic from '@anthropic-ai/sdk';
+import type { LlmProvider } from '../llm/provider';
 import * as criarCampanha from './commands/criar-campanha';
 import * as criarPersonagem from './commands/criar-personagem';
 import * as iniciarCombate from './commands/iniciar-combate';
@@ -9,39 +10,122 @@ import * as iniciarCampanha from './commands/iniciar-campanha';
 import * as pausarCampanha from './commands/pausar-campanha';
 import * as retomarCampanha from './commands/retomar-campanha';
 import * as minhaFicha from './commands/minha-ficha';
+import * as inventario from './commands/inventario';
+import * as carteira from './commands/carteira';
+import * as poderes from './commands/poderes';
+import * as conceder from './commands/conceder';
+import * as percepcao from './commands/percepcao';
 
-export async function routeInteraction(interaction: Interaction, pool: Pool, claudeClient: Anthropic): Promise<void> {
+export async function routeInteraction(
+  interaction: Interaction,
+  pool: Pool,
+  claudeClient: Anthropic,
+  llmProvider: LlmProvider
+): Promise<void> {
   if (interaction.isChatInputCommand()) {
-    if (interaction.commandName === 'criar-campanha') {
+    const name = interaction.commandName;
+    if (name === 'criar-campanha') {
       await criarCampanha.execute(interaction, pool, claudeClient);
       return;
     }
-    if (interaction.commandName === 'criar-personagem') {
+    if (name === 'criar-personagem') {
       await criarPersonagem.execute(interaction, pool);
       return;
     }
-    if (interaction.commandName === 'iniciar-combate') {
+    if (name === 'iniciar-combate') {
       await iniciarCombate.execute(interaction, pool);
       return;
     }
-    if (interaction.commandName === 'responder-campanha') {
+    if (name === 'responder-campanha') {
       await responderCampanha.execute(interaction, pool, claudeClient);
       return;
     }
-    if (interaction.commandName === 'iniciar-campanha') {
+    if (name === 'iniciar-campanha') {
       await iniciarCampanha.execute(interaction, pool);
       return;
     }
-    if (interaction.commandName === 'pausar-campanha') {
+    if (name === 'pausar-campanha') {
       await pausarCampanha.execute(interaction, pool);
       return;
     }
-    if (interaction.commandName === 'retomar-campanha') {
+    if (name === 'retomar-campanha') {
       await retomarCampanha.execute(interaction, pool);
       return;
     }
-    if (interaction.commandName === 'minha-ficha') {
+    if (name === 'minha-ficha') {
       await minhaFicha.execute(interaction, pool);
+      return;
+    }
+    if (name === 'inventario') {
+      await inventario.executeInventario(interaction, pool);
+      return;
+    }
+    if (name === 'usar') {
+      await inventario.executeUsar(interaction, pool);
+      return;
+    }
+    if (name === 'ler') {
+      await inventario.executeLer(interaction, pool);
+      return;
+    }
+    if (name === 'dar') {
+      await inventario.executeDar(interaction, pool);
+      return;
+    }
+    if (name === 'jogar-fora') {
+      await inventario.executeJogarFora(interaction, pool);
+      return;
+    }
+    if (name === 'carteira') {
+      await carteira.executeCarteira(interaction, pool);
+      return;
+    }
+    if (name === 'pagar') {
+      await carteira.executePagar(interaction, pool);
+      return;
+    }
+    if (name === 'dar-dinheiro') {
+      await carteira.executeDarDinheiro(interaction, pool);
+      return;
+    }
+    if (name === 'poderes') {
+      await poderes.executePoderes(interaction, pool);
+      return;
+    }
+    if (name === 'definir-classe') {
+      await poderes.executeDefinirClasse(interaction, pool);
+      return;
+    }
+    if (name === 'aprender-poder') {
+      await poderes.executeAprenderPoder(interaction, pool);
+      return;
+    }
+    if (name === 'evoluir-poder') {
+      await poderes.executeEvoluirPoder(interaction, pool);
+      return;
+    }
+    if (name === 'evoluir-atributo') {
+      await poderes.executeEvoluirAtributo(interaction, pool);
+      return;
+    }
+    if (name === 'conceder-item') {
+      await conceder.executeConcederItem(interaction, pool);
+      return;
+    }
+    if (name === 'conceder-xp') {
+      await conceder.executeConcederXp(interaction, pool);
+      return;
+    }
+    if (name === 'conceder-dinheiro') {
+      await conceder.executeConcederDinheiro(interaction, pool);
+      return;
+    }
+    if (name === 'definir-capacidade-bolsa') {
+      await conceder.executeDefinirCapacidadeBolsa(interaction, pool);
+      return;
+    }
+    if (name === 'percepcao') {
+      await percepcao.execute(interaction, pool, llmProvider);
       return;
     }
     return;

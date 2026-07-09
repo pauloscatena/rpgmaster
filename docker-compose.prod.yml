@@ -1,0 +1,74 @@
+# Produção na VPS: bot Discord + Postgres + Ollama (rede interna).
+# Não publica portas HTTP — o bot só fala com a API do Discord (saída).
+# Ollama NÃO publica 11434 na internet: só acessível pelos serviços deste Compose.
+#
+# Uso:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#   docker compose -f docker-compose.prod.yml logs -f bot
+#   docker compose -f docker-compose.prod.yml exec ollama ollama pull qwen2.5:7b
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rpgmaster}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: ${POSTGRES_DB:-rpgmaster}
+    volumes:
+      - rpgmaster-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Sem ports: — Postgres só na rede interna do Compose
+
+  ollama:
+    image: ollama/ollama
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    # Sem ports: — Ollama só na rede interna (hostname: ollama)
+    # CPU-only (VPS sem GPU): threads = vCPUs; keep_alive=-1 evita reload (~8–40s);
+    # context 4096 cobre lore+resumo+tools sem alocar KV cache enorme (modelo aceita 32k).
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_NUM_THREAD: ${OLLAMA_NUM_THREAD:-4}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-4096}
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-rpgmaster}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-rpgmaster}
+      # Em produção com Ollama no Compose, use OLLAMA_BASE_URL=http://ollama:11434 no .env
+      LLM_REQUEST_TIMEOUT_MS: ${LLM_REQUEST_TIMEOUT_MS:-90000}
+      OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-4096}
+      OLLAMA_NUM_THREAD: ${OLLAMA_NUM_THREAD:-4}
+      OLLAMA_NUM_PREDICT: ${OLLAMA_NUM_PREDICT:-512}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    command: sh -c "npm run migrate && npm run start"
+
+volumes:
+  rpgmaster-db-data:
+  # Reutiliza o volume do container ollama solto antigo (modelos já baixados).
+  ollama-data:
+    name: ollama
+    external: true

@@ -1,3 +1,4 @@
+import { resolveAttributeValue } from './character';
 import { rollDie } from './dice';
 import type { CharacterSheet, Rng, ValidatedRulesetConfig } from './types';
 
@@ -16,10 +17,7 @@ export function fazerTeste(
   difficulty: number,
   rng: Rng = Math.random
 ): CheckResult {
-  const attributeValue = character.attributes[attribute];
-  if (attributeValue === undefined) {
-    throw new Error(`A ficha de "${character.name}" não tem o atributo "${attribute}"`);
-  }
+  const attributeValue = resolveAttributeValue(character, attribute, rng);
   const roll = rollDie(config.testDie, rng);
   const total = roll + attributeValue;
   return { roll, attributeValue, total, difficulty, success: total >= difficulty };

@@ -2,12 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Pool } from 'pg';
 import type Anthropic from '@anthropic-ai/sdk';
 import { createTestPool } from '../../src/db/test-db';
-import { createCampaign, getCampaignByChannel } from '../../src/db/campaigns-repo';
+import { createCampaign, getCampaignByChannel, updateRecentExchanges } from '../../src/db/campaigns-repo';
 import { createCharacter } from '../../src/db/characters-repo';
 import { saveCombatState } from '../../src/db/combat-repo';
 import { defaultRulesetConfig, createCharacterSheet } from '../../src/rules-engine';
 import { handleMessage } from '../../src/bot/message-handler';
 import type { LlmProvider } from '../../src/llm/provider';
+import type { ToolContext, ToolDefinition } from '../../src/llm/tools';
 import * as ingestion from '../../src/ingestion/extract';
 
 describe('handleMessage', () => {
@@ -37,23 +38,38 @@ describe('handleMessage', () => {
     const aria = await createCharacter(pool, {
       campaignId: campaign!.id,
       playerDiscordId: 'player-1',
-      sheet: { name: 'Aria', attributes: { forca: 3, destreza: 2, intelecto: 1 }, resources: { hp: 13 }, inventory: [] },
+      sheet: createCharacterSheet(defaultRulesetConfig(), 'Aria', { forca: 3, destreza: 2, intelecto: 1 }),
     });
     ariaId = aria.id;
   });
 
   function makeMessage(content: string, authorId = 'player-1', isBot = false) {
     const replies: string[] = [];
+    const statusEdits: string[] = [];
+    const statusMessage = {
+      edit: vi.fn(async (text: string) => {
+        statusEdits.push(text);
+      }),
+      delete: vi.fn().mockResolvedValue(undefined),
+    };
     return {
       author: { id: authorId, bot: isBot },
       guildId: 'guild-1',
       channelId: 'channel-1',
       content,
-      channel: { sendTyping: vi.fn().mockResolvedValue(undefined) },
+      channel: {
+        sendTyping: vi.fn().mockResolvedValue(undefined),
+        send: vi.fn(async (text: string) => {
+          statusEdits.push(text);
+          return statusMessage;
+        }),
+      },
       reply: async (text: string) => {
         replies.push(text);
       },
       _replies: replies,
+      _statusEdits: statusEdits,
+      _statusMessage: statusMessage,
     } as any;
   }
 
@@ -84,7 +100,7 @@ describe('handleMessage', () => {
       await createCharacter(pool, {
         campaignId: draftCampaign.id,
         playerDiscordId: 'player-1',
-        sheet: { name: 'Aria', attributes: { forca: 3, destreza: 2, intelecto: 1 }, resources: { hp: 13 }, inventory: [] },
+        sheet: createCharacterSheet(defaultRulesetConfig(), 'Aria', { forca: 3, destreza: 2, intelecto: 1 }),
       });
       return draftCampaign;
     }
@@ -177,6 +193,62 @@ describe('handleMessage', () => {
     const message = makeMessage('eu examino a sala');
     await handleMessage(message, pool, llmProvider, claudeClient);
     expect(message.channel.sendTyping).toHaveBeenCalled();
+    expect(message.channel.send).toHaveBeenCalledTimes(1);
+    expect(message._statusEdits[0]).toMatch(/pensando|runas|hipercarbonizando|destino|deuses|lore|d20|plot twist|biombo|grimório|dragões|NPC/i);
+    expect(message._statusMessage.delete).toHaveBeenCalled();
+  });
+
+  it('renova typing e edita o status enquanto o LLM demora, depois limpa', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      let resolveTurn!: (value: { narration: string; toolCalls: unknown[] }) => void;
+      const llmProvider = makeLlmProvider({
+        runTurn: vi.fn().mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              resolveTurn = resolve;
+            })
+        ),
+      });
+      const message = makeMessage('eu examino a sala');
+      const handlePromise = handleMessage(message, pool, llmProvider, claudeClient);
+
+      await vi.waitFor(() => {
+        expect(message.channel.sendTyping).toHaveBeenCalledTimes(1);
+        expect(message.channel.send).toHaveBeenCalledTimes(1);
+      });
+
+      await vi.advanceTimersByTimeAsync(8_000);
+      expect(message.channel.sendTyping).toHaveBeenCalledTimes(2);
+      expect(message._statusMessage.edit).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(8_000);
+      expect(message.channel.sendTyping).toHaveBeenCalledTimes(3);
+      expect(message._statusMessage.edit).toHaveBeenCalledTimes(2);
+
+      const statusShape = /_.+?\s(pensando|consultando runas|hipercarbonizando|rolando destino|barganhando com os deuses|desembaralhando a lore|calibrando o d20|invocando plot twist|sincronizando o biombo|decifrando o grimório|negociando com dragões|aquecendo o NPC)…_/;
+      const first = message._statusEdits[0];
+      const second = message._statusEdits[1];
+      const third = message._statusEdits[2];
+      expect(first).toMatch(statusShape);
+      expect(second).toMatch(statusShape);
+      expect(third).toMatch(statusShape);
+      expect(second).not.toBe(first);
+      expect(third).not.toBe(second);
+
+      resolveTurn({ narration: 'Você vê uma sala empoeirada.', toolCalls: [] });
+      await handlePromise;
+      expect(message._replies[0]).toBe('Você vê uma sala empoeirada.');
+      expect(message._statusMessage.delete).toHaveBeenCalled();
+
+      const callsAfterDone = message.channel.sendTyping.mock.calls.length;
+      const editsAfterDone = message._statusMessage.edit.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(16_000);
+      expect(message.channel.sendTyping).toHaveBeenCalledTimes(callsAfterDone);
+      expect(message._statusMessage.edit).toHaveBeenCalledTimes(editsAfterDone);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('não deixa uma falha ao sinalizar "digitando" impedir a resposta', async () => {
@@ -187,20 +259,67 @@ describe('handleMessage', () => {
     expect(message._replies[0]).toBe('Você vê uma sala empoeirada.');
   });
 
+  it('não deixa falha ao enviar status impedir a resposta', async () => {
+    const llmProvider = makeLlmProvider();
+    const message = makeMessage('eu examino a sala');
+    message.channel.send.mockRejectedValue(new Error('sem permissão'));
+    await handleMessage(message, pool, llmProvider, claudeClient);
+    expect(message._replies[0]).toBe('Você vê uma sala empoeirada.');
+  });
+
+  it('envia retorta irônica e segue o turno quando a mensagem tem palavrão', async () => {
+    const llmProvider = makeLlmProvider();
+    const message = makeMessage('eu entro nessa porra de sala');
+    await handleMessage(message, pool, llmProvider, claudeClient);
+    expect(message.channel.send).toHaveBeenCalled();
+    const firstSend = message.channel.send.mock.calls[0][0] as string;
+    expect(firstSend).toMatch(/mãe|deuses|lore|bardo|dados|goblin|clérigo|grimório|dragão|troll|taverna|imprudência|sobrancelha|ancestrais|guilda/i);
+    expect(llmProvider.runTurn).toHaveBeenCalled();
+    expect(message._replies[0]).toBe('Você vê uma sala empoeirada.');
+  });
+
+  it('não envia retorta quando a mensagem não tem palavrão', async () => {
+    const llmProvider = makeLlmProvider();
+    const message = makeMessage('eu examino a sala');
+    await handleMessage(message, pool, llmProvider, claudeClient);
+    // só o status de "digitando", não uma retorta prévia
+    expect(message.channel.send).toHaveBeenCalledTimes(1);
+    expect(message._statusEdits[0]).toMatch(/pensando|runas|hipercarbonizando|destino|deuses|lore|d20|plot twist|biombo|grimório|dragões|NPC/i);
+  });
+
   it('passa as tools fazer_teste e consultar_ficha para o provedor', async () => {
     const llmProvider = makeLlmProvider();
     const message = makeMessage('eu examino a sala');
     await handleMessage(message, pool, llmProvider, claudeClient);
     const toolsArg = (llmProvider.runTurn as any).mock.calls[0][2] as { name: string }[];
-    expect(toolsArg.map((t) => t.name)).toEqual(['fazer_teste', 'consultar_ficha']);
+    expect(toolsArg.map((t) => t.name)).toEqual(
+      expect.arrayContaining(['fazer_teste', 'consultar_ficha', 'conceder_xp', 'conceder_poder'])
+    );
+    expect(toolsArg.map((t) => t.name)).not.toContain('ajustar_carteira');
   });
 
-  it('atualiza o resumo da sessão após a resposta', async () => {
+  it('acrescenta a troca ao buffer de curto prazo após a resposta', async () => {
     const llmProvider = makeLlmProvider();
     const message = makeMessage('eu examino a sala');
     await handleMessage(message, pool, llmProvider, claudeClient);
     const campaign = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
-    expect(campaign?.sessionSummary).toContain('sala empoeirada');
+    expect(campaign?.recentExchanges).toEqual([
+      { characterName: 'Aria', playerMessage: 'eu examino a sala', narration: 'Você vê uma sala empoeirada.' },
+    ]);
+  });
+
+  it('sanitiza tags <tools> da narração antes do reply e do buffer', async () => {
+    const llmProvider = makeLlmProvider({
+      runTurn: vi.fn().mockResolvedValue({
+        narration: 'Você vê uma sala empoeirada.\n\n<tools></tools>',
+        toolCalls: [],
+      }),
+    });
+    const message = makeMessage('eu examino a sala');
+    await handleMessage(message, pool, llmProvider, claudeClient);
+    expect(message._replies[0]).toBe('Você vê uma sala empoeirada.');
+    const campaign = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
+    expect(campaign?.recentExchanges?.[0]?.narration).toBe('Você vê uma sala empoeirada.');
   });
 
   it('não deixa o erro do runTurn propagar e responde com mensagem amigável', async () => {
@@ -213,10 +332,10 @@ describe('handleMessage', () => {
 
     expect(message._replies).toHaveLength(1);
     expect(message._replies[0]).not.toBe('Você vê uma sala empoeirada.');
-    expect(message._replies[0]).toMatch(/mestre teve um problema/i);
+    expect(message._replies[0]).toMatch(/névoa da trama/i);
   });
 
-  it('não atualiza o resumo da sessão quando o runTurn falha', async () => {
+  it('não acrescenta troca ao buffer quando o runTurn falha', async () => {
     const llmProvider = makeLlmProvider({
       runTurn: vi.fn().mockRejectedValue(new Error('boom')),
     });
@@ -226,7 +345,7 @@ describe('handleMessage', () => {
     await handleMessage(message, pool, llmProvider, claudeClient);
 
     const campaignAfter = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
-    expect(campaignAfter?.sessionSummary).toBe(campaignBefore?.sessionSummary);
+    expect(campaignAfter?.recentExchanges).toEqual(campaignBefore?.recentExchanges);
   });
 
   it('em combate, recusa a ação quando não é o turno do autor', async () => {
@@ -273,5 +392,56 @@ describe('handleMessage', () => {
     expect(toolsArg.map((t) => t.name)).toEqual(
       expect.arrayContaining(['fazer_teste', 'consultar_ficha', 'resolver_ataque', 'aplicar_dano', 'avancar_turno'])
     );
+  });
+
+  describe('reflexão narrativa periódica', () => {
+    async function primeReflectionCounter(times: number) {
+      for (let i = 0; i < times; i++) {
+        await updateRecentExchanges(pool, campaignId, []);
+      }
+    }
+
+    it('não dispara reflexão antes de atingir o limiar de mensagens', async () => {
+      await primeReflectionCounter(8);
+      const llmProvider = makeLlmProvider();
+      const message = makeMessage('eu examino a sala');
+      await handleMessage(message, pool, llmProvider, claudeClient);
+      expect((llmProvider.runTurn as any).mock.calls.length).toBe(1);
+    });
+
+    it('dispara uma segunda chamada de reflexão ao atingir o limiar e persiste o estado', async () => {
+      await primeReflectionCounter(9);
+      const llmProvider: LlmProvider = {
+        runTurn: vi
+          .fn()
+          .mockResolvedValueOnce({ narration: 'Você vê uma sala empoeirada.', toolCalls: [] })
+          .mockImplementationOnce(async (_system: string, _user: string, tools: ToolDefinition[], ctx: ToolContext) => {
+            await tools[0]!.execute(
+              { ritmo_atual: 'ação', proximo_marco: 'encontrar o goblin', fatos_cruciais: ['o rei está morto'] },
+              ctx
+            );
+            return { narration: '', toolCalls: [] };
+          }),
+      };
+      const message = makeMessage('eu examino a sala');
+      await handleMessage(message, pool, llmProvider, claudeClient);
+      expect((llmProvider.runTurn as any).mock.calls.length).toBe(2);
+      const campaign = await getCampaignByChannel(pool, 'guild-1', 'channel-1');
+      expect(campaign?.ritmoAtual).toBe('ação');
+      expect(campaign?.proximoMarco).toBe('encontrar o goblin');
+    });
+
+    it('não propaga erro nem impede a resposta quando a reflexão falha', async () => {
+      await primeReflectionCounter(9);
+      const llmProvider: LlmProvider = {
+        runTurn: vi
+          .fn()
+          .mockResolvedValueOnce({ narration: 'Você vê uma sala empoeirada.', toolCalls: [] })
+          .mockRejectedValueOnce(new Error('boom')),
+      };
+      const message = makeMessage('eu examino a sala');
+      await expect(handleMessage(message, pool, llmProvider, claudeClient)).resolves.toBeUndefined();
+      expect(message._replies[0]).toBe('Você vê uma sala empoeirada.');
+    });
   });
 });

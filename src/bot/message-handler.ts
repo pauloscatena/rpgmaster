@@ -1,17 +1,13 @@
 import type { Message } from 'discord.js';
 import type { Pool } from 'pg';
 import type Anthropic from '@anthropic-ai/sdk';
-import { getCampaignByChannel, updateSessionSummary } from '../db/campaigns-repo';
+import { getCampaignByChannel } from '../db/campaigns-repo';
 import { getCharacterByPlayer } from '../db/characters-repo';
-import { getCombatState } from '../db/combat-repo';
 import type { LlmProvider } from '../llm/provider';
-import { fazerTesteTool, consultarFichaTool, type ToolDefinition } from '../llm/tools';
-import { resolverAtaqueTool, aplicarDanoTool, avancarTurnoTool } from '../llm/combat-tools';
-import { buildSystemPrompt } from '../llm/context';
-import { appendToSessionSummary } from '../llm/session-summary';
 import { processDraftAnswer } from '../ingestion/draft-flow';
 import { splitDiscordMessage } from './discord-text';
-import { turnoAtual } from '../rules-engine';
+import { runActiveCampaignTurn } from './campaign-turn';
+import { detectProfanity, randomProfanityRetort } from './profanity';
 
 export async function handleMessage(
   message: Message,
@@ -52,51 +48,23 @@ export async function handleMessage(
     return;
   }
 
-  const combatState = await getCombatState(pool, campaign.id);
-  let tools: ToolDefinition[] = [fazerTesteTool, consultarFichaTool];
-  let combatContext: { pool: Pool; campaignId: string } | undefined;
-
-  if (combatState) {
-    const currentCombatant = turnoAtual({ order: combatState.order, currentIndex: combatState.currentIndex });
-    const actingCombatant = combatState.combatants.find((c) => c.characterId === character.id);
-    if (!actingCombatant || actingCombatant.id !== currentCombatant.id) {
-      await message.reply(`Ainda não é sua vez. É a vez de **${currentCombatant.name}**.`);
-      return;
-    }
-    tools = [...tools, resolverAtaqueTool, aplicarDanoTool, avancarTurnoTool];
-    combatContext = { pool, campaignId: campaign.id };
+  if (detectProfanity(message.content) && 'send' in message.channel) {
+    await message.channel.send(randomProfanityRetort()).catch(() => {});
   }
 
-  const systemPrompt = buildSystemPrompt({
-    campaignName: campaign.name,
-    lore: campaign.lore,
-    sessionSummary: campaign.sessionSummary,
-    rulesetName: campaign.rulesetConfig.name,
-    inCombat: Boolean(combatState),
+  const result = await runActiveCampaignTurn({
+    pool,
+    llmProvider,
+    campaign,
+    character,
+    playerMessage: message.content,
+    channel: message.channel,
+    reply: async (text) => {
+      await message.reply(text);
+    },
   });
 
-  try {
-    if ('sendTyping' in message.channel) {
-      await message.channel.sendTyping().catch(() => {});
-    }
-    const result = await llmProvider.runTurn(systemPrompt, message.content, tools, {
-      config: campaign.rulesetConfig,
-      actingCharacter: character,
-      rng: Math.random,
-      combat: combatContext,
-    });
-
-    await message.reply(result.narration);
-
-    const exchange = `${character.sheet.name}: ${message.content}\nMestre: ${result.narration}`;
-    const updatedSummary = appendToSessionSummary(campaign.sessionSummary, exchange);
-    await updateSessionSummary(pool, campaign.id, updatedSummary);
-  } catch (err) {
-    console.error('Erro ao processar turno do LLM:', err);
-    try {
-      await message.reply('O mestre teve um problema para responder. Tente novamente em instantes.');
-    } catch (replyErr) {
-      console.error('Erro ao enviar mensagem de fallback:', replyErr);
-    }
+  if (!result.ok && result.userMessage !== 'turno_falhou') {
+    await message.reply(result.userMessage);
   }
 }

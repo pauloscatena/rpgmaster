@@ -2,7 +2,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.j
 import type { Pool } from 'pg';
 import type Anthropic from '@anthropic-ai/sdk';
 import { createCampaign, getCampaignByChannel } from '../../db/campaigns-repo';
-import { defaultRulesetConfig } from '../../rules-engine';
+import { defaultRulesetConfig, inferEconomyEnabled, resolveCurrencyNames } from '../../rules-engine';
 import { fetchAttachmentText, UnsupportedAttachmentError } from '../attachments';
 import { extractResolvedConfig } from '../../ingestion/extract';
 import { formatDraftSummary } from '../../ingestion/draft-flow';
@@ -41,7 +41,17 @@ export async function execute(interaction: ChatInputCommandInteraction, pool: Po
       console.error('Erro ao gerar lore aleatória:', err);
       lore = 'Uma aventura misteriosa espera para ser descoberta.';
     }
-    const campaign = await createCampaign(pool, { guildId, channelId, name: nome, rulesetConfig: defaultRulesetConfig(), lore });
+    const economyEnabled = inferEconomyEnabled(lore);
+    const campaign = await createCampaign(pool, {
+      guildId,
+      channelId,
+      name: nome,
+      rulesetConfig: defaultRulesetConfig(),
+      lore,
+      createdByDiscordId: interaction.user?.id ?? null,
+      economyEnabled,
+      currencyNames: resolveCurrencyNames({ economyEnabled }),
+    });
     await interaction.editReply(
       `Campanha "${campaign.name}" criada! Sistema de regras: ${campaign.rulesetConfig.name}.\n\n${lore}`
     );
@@ -53,6 +63,7 @@ export async function execute(interaction: ChatInputCommandInteraction, pool: Po
   try {
     const documentText = await fetchAttachmentText(attachment.url, attachment.name);
     const resolved = await extractResolvedConfig(claudeClient, documentText);
+    const economyEnabled = inferEconomyEnabled(resolved.lore);
     const campaign = await createCampaign(pool, {
       guildId,
       channelId,
@@ -61,6 +72,9 @@ export async function execute(interaction: ChatInputCommandInteraction, pool: Po
       lore: resolved.lore,
       sourceDocument: documentText,
       status: 'draft',
+      createdByDiscordId: interaction.user?.id ?? null,
+      economyEnabled,
+      currencyNames: resolveCurrencyNames({ economyEnabled }),
     });
     const { first, rest } = splitDiscordMessage(formatDraftSummary(campaign, resolved.clarifyingQuestions));
     await interaction.editReply(first);
